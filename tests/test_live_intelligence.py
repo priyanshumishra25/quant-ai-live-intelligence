@@ -118,17 +118,28 @@ async def test_live_intelligence_fuses_history_news_and_reddit():
     assert payload["evidence"]["reddit_comment_count"] == 8
     assert payload["model"]["type"] == "on_demand_ridge_fusion"
     assert payload["model"]["training_rows"] > 100
+    assert payload["model"]["validation"]["purge_rows"] == 5
+    assert payload["model"]["validation"]["rows"] >= 10
+    assert payload["model"]["validation"]["effective_non_overlapping_observations"] >= 1
+    assert payload["model"]["validation"]["reliability"] in {"LOW", "MEDIUM", "HIGH"}
+    assert payload["model"]["ridge_alpha_selection"]["method"] == "training_only_generalized_cross_validation"
     assert "news_sentiment" in payload["model"]["feature_names"]
     assert "reddit_sentiment" not in payload["model"]["feature_names"]
     assert "reddit_sentiment" in payload["model"]["inference_only_features"]
     assert payload["model"]["reddit_overlay"]["type"] == "fixed_bounded_inference_overlay"
-    assert 0.0 <= payload["prediction"]["confidence"] <= 0.95
+    assert 0.0 <= payload["prediction"]["signal_strength"] <= 1.0
+    assert -1.0 <= payload["prediction"]["signal_score"] <= 1.0
     assert abs(
-        payload["prediction"]["buy_probability"]
-        + payload["prediction"]["hold_probability"]
-        + payload["prediction"]["sell_probability"]
+        payload["prediction"]["bullish_score"]
+        + payload["prediction"]["neutral_score"]
+        + payload["prediction"]["bearish_score"]
         - 1.0
     ) < 0.001
+    assert "buy_probability" not in payload["prediction"]
+    assert "confidence" not in payload["prediction"]
+    assert payload["prediction"]["holdout_residual_volatility_pct"] == pytest.approx(
+        payload["model"]["validation"]["residual_std_pct_points"]
+    )
     assert set(payload["prediction"]["contribution_mix"]) == {"technical", "news", "reddit"}
     assert payload["history"]
     assert payload["evidence"]["items"]
@@ -309,3 +320,61 @@ async def test_alpha_free_tier_defaults_to_compact_and_translates_quota_message(
             await alpha.search("Apple")
     assert exc.value.kind == "daily_quota"
     assert "daily quota reached" in str(exc.value).lower()
+
+
+def test_news_mapping_respects_us_market_close():
+    dates = pd.DatetimeIndex([pd.Timestamp("2026-09-18"), pd.Timestamp("2026-09-21")])
+    before_close = IntelligenceItem(
+        source="Wire", kind="news", title="before", text="before",
+        published_at=datetime(2026, 9, 18, 19, 30, tzinfo=timezone.utc),  # 15:30 ET
+        url="https://example.com/before", sentiment=0.8, relevance=1.0,
+    )
+    after_close = IntelligenceItem(
+        source="Wire", kind="news", title="after", text="after",
+        published_at=datetime(2026, 9, 18, 20, 30, tzinfo=timezone.utc),  # 16:30 ET
+        url="https://example.com/after", sentiment=-0.8, relevance=1.0,
+    )
+    first = LiveIntelligenceService._map_items_to_market_dates(dates, [before_close])
+    second = LiveIntelligenceService._map_items_to_market_dates(dates, [after_close])
+    assert first.loc[pd.Timestamp("2026-09-18"), "news_volume"] > 0
+    assert second.loc[pd.Timestamp("2026-09-18"), "news_volume"] == 0
+    assert second.loc[pd.Timestamp("2026-09-21"), "news_volume"] > 0
+
+
+@pytest.mark.asyncio
+async def test_alpha_drops_news_with_invalid_timestamp():
+    import httpx
+    from services.live_intelligence import AlphaVantageClient
+
+    payload = {"feed": [
+        {
+            "title": "bad timestamp", "summary": "ignored", "time_published": "not-a-time",
+            "source": "Wire", "url": "https://example.com/bad",
+            "ticker_sentiment": [{"ticker": "AAPL", "relevance_score": "1", "ticker_sentiment_score": "0.2"}],
+        },
+        {
+            "title": "valid timestamp", "summary": "kept", "time_published": "20260920T120000",
+            "source": "Wire", "url": "https://example.com/good",
+            "ticker_sentiment": [{"ticker": "AAPL", "relevance_score": "1", "ticker_sentiment_score": "0.3"}],
+        },
+    ]}
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))) as client:
+        alpha = AlphaVantageClient("test", client=client, min_interval_seconds=0)
+        items = await alpha.news("AAPL")
+    assert [item.title for item in items] == ["valid timestamp"]
+
+
+def test_twenty_day_validation_is_purged_and_flagged_low_reliability_on_compact_history():
+    rng = np.random.default_rng(11)
+    dates = pd.bdate_range("2026-05-01", periods=100)
+    close = 100 * np.exp(np.cumsum(rng.normal(0.0004, 0.01, len(dates))))
+    history = pd.DataFrame({
+        "open": close, "high": close * 1.01, "low": close * 0.99,
+        "close": close, "volume": np.full(len(dates), 1_000_000),
+    }, index=dates)
+    _, validation, meta = LiveIntelligenceService._fit_fusion_model(history, [], "20d")
+    assert validation["purge_rows"] == 20
+    assert validation["rows"] >= 10
+    assert validation["effective_non_overlapping_observations"] <= 2
+    assert validation["reliability"] == "LOW"
+    assert pd.Timestamp(meta["train_end"]) < pd.Timestamp(meta["validation_start"])

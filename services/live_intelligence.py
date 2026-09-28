@@ -15,6 +15,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Iterable
 
 import httpx
@@ -297,8 +298,10 @@ class AlphaVantageClient:
             raw_time = str(article.get("time_published", ""))
             try:
                 published = datetime.strptime(raw_time[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
-            except ValueError:
-                published = datetime.now(timezone.utc)
+            except (TypeError, ValueError):
+                # Missing/malformed timestamps cannot be placed safely on the
+                # market timeline. Drop them instead of fabricating `now()`.
+                continue
 
             ticker_score: float | None = None
             relevance = 0.0
@@ -423,7 +426,11 @@ class RedditClient:
                 seen.add(post_id)
                 title = str(row.get("title", ""))
                 selftext = str(row.get("selftext", ""))
-                created = datetime.fromtimestamp(float(row.get("created_utc", time.time())), tz=timezone.utc)
+                created_raw = row.get("created_utc")
+                try:
+                    created = datetime.fromtimestamp(float(created_raw), tz=timezone.utc)
+                except (TypeError, ValueError, OSError):
+                    continue
                 score = int(row.get("score", 0) or 0)
                 comments = int(row.get("num_comments", 0) or 0)
                 permalink = str(row.get("permalink", ""))
@@ -471,7 +478,11 @@ class RedditClient:
                 body = str(row.get("body", ""))
                 if not body or body in {"[deleted]", "[removed]"}:
                     continue
-                created = datetime.fromtimestamp(float(row.get("created_utc", time.time())), tz=timezone.utc)
+                created_raw = row.get("created_utc")
+                try:
+                    created = datetime.fromtimestamp(float(created_raw), tz=timezone.utc)
+                except (TypeError, ValueError, OSError):
+                    continue
                 permalink = str(row.get("permalink", ""))
                 comments.append(IntelligenceItem(
                     source="Reddit",
@@ -496,6 +507,10 @@ ALT_FEATURES = [
     "reddit_volume",
     "reddit_engagement",
 ]
+
+US_EASTERN = ZoneInfo("America/New_York")
+RIDGE_ALPHA_GRID = (0.01, 0.05, 0.10, 0.35, 1.0, 3.0, 10.0)
+REDDIT_MAX_RESIDUAL_SIGMA_FRACTION = 0.25
 
 
 class LiveIntelligenceService:
@@ -595,14 +610,14 @@ class LiveIntelligenceService:
         }
 
     @staticmethod
-    def _item_from_cache(data: dict[str, Any]) -> IntelligenceItem:
+    def _item_from_cache(data: dict[str, Any]) -> IntelligenceItem | None:
         published_raw = str(data.get("published_at", ""))
         try:
             published = datetime.fromisoformat(published_raw.replace("Z", "+00:00"))
             if published.tzinfo is None:
                 published = published.replace(tzinfo=timezone.utc)
-        except ValueError:
-            published = datetime.now(timezone.utc)
+        except (TypeError, ValueError):
+            return None
         return IntelligenceItem(
             source=str(data.get("source", "")), kind=str(data.get("kind", "")),
             title=str(data.get("title", "")), text=str(data.get("text", "")), published_at=published,
@@ -659,7 +674,8 @@ class LiveIntelligenceService:
         key = f"provider:v3:news:{symbol.upper()}:{lookback_days}:{self.news_fetch_limit}"
         cached = await self._cache_get(key)
         if cached and isinstance(cached.get("items"), list):
-            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+            restored = [self._item_from_cache(dict(item)) for item in cached["items"]]
+            return [item for item in restored if item is not None]
         items = await self.alpha.news(symbol, lookback_days, self.news_fetch_limit)
         await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.news_cache_ttl)
         return items
@@ -670,7 +686,8 @@ class LiveIntelligenceService:
         key = f"provider:v3:reddit-posts:{symbol.upper()}:{self.reddit_fetch_limit}"
         cached = await self._cache_get(key)
         if cached and isinstance(cached.get("items"), list):
-            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+            restored = [self._item_from_cache(dict(item)) for item in cached["items"]]
+            return [item for item in restored if item is not None]
         items = await self.reddit.search_posts(symbol, company_name, self.reddit_fetch_limit)
         await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.reddit_cache_ttl)
         return items
@@ -682,7 +699,8 @@ class LiveIntelligenceService:
         key = f"provider:v3:reddit-comments:{ids}:{self.reddit_comments_per_post}"
         cached = await self._cache_get(key)
         if cached and isinstance(cached.get("items"), list):
-            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+            restored = [self._item_from_cache(dict(item)) for item in cached["items"]]
+            return [item for item in restored if item is not None]
         items = await self.reddit.top_comments(posts, max_posts=self.reddit_comment_posts, comments_per_post=self.reddit_comments_per_post)
         await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.reddit_cache_ttl)
         return items
@@ -709,6 +727,12 @@ class LiveIntelligenceService:
 
     @staticmethod
     def _map_items_to_market_dates(index: pd.DatetimeIndex, items: Iterable[IntelligenceItem]) -> pd.DataFrame:
+        """Map evidence to the first market close at which it was knowable.
+
+        Daily bars are treated as US close-to-close observations. News at or
+        after 16:00 America/New_York rolls to the next available market session;
+        weekend/holiday items also roll forward.
+        """
         dates = pd.DatetimeIndex(index).tz_localize(None).normalize()
         frame = pd.DataFrame(index=dates, data={
             "news_sentiment": 0.0,
@@ -722,13 +746,12 @@ class LiveIntelligenceService:
 
         buckets: dict[tuple[pd.Timestamp, str], list[tuple[float, float, int]]] = {}
         for item in items:
-            day = pd.Timestamp(item.published_at.astimezone(timezone.utc).date())
-            # Content outside the available market-history window is not
-            # collapsed onto the first/last training row. This prevents old
-            # news from contaminating the compact free-tier history window.
-            if day < dates[0] or day > dates[-1]:
+            local = item.published_at.astimezone(US_EASTERN)
+            local_day = pd.Timestamp(local.date())
+            if local_day < dates[0] or local_day > dates[-1]:
                 continue
-            pos = dates.searchsorted(day, side="left")
+            side = "right" if (local.hour, local.minute, local.second) >= (16, 0, 0) else "left"
+            pos = dates.searchsorted(local_day, side=side)
             if pos >= len(dates):
                 continue
             market_day = dates[pos]
@@ -748,7 +771,6 @@ class LiveIntelligenceService:
                 frame.loc[day, "reddit_volume"] = math.log1p(len(values))
                 frame.loc[day, "reddit_engagement"] = math.log1p(sum(max(0, v[2]) for v in values))
 
-        # Preserve short-lived information while letting stale sentiment decay.
         for col in ALT_FEATURES:
             frame[col] = frame[col].ewm(span=5, adjust=False).mean()
         return frame
@@ -770,39 +792,60 @@ class LiveIntelligenceService:
         }
 
     @staticmethod
-    def _ridge_fit(X: np.ndarray, y: np.ndarray, ridge: float = 0.35) -> dict[str, Any]:
+    def _ridge_fit(X: np.ndarray, y: np.ndarray, ridge: float) -> dict[str, Any]:
         mean = X.mean(axis=0)
         std = X.std(axis=0)
         std[std < 1e-10] = 1.0
         Z = (X - mean) / std
         design = np.column_stack([np.ones(len(Z)), Z])
-        reg = np.eye(design.shape[1]) * ridge
+        reg = np.eye(design.shape[1]) * float(ridge)
         reg[0, 0] = 0.0
         beta = np.linalg.solve(design.T @ design + reg, design.T @ y)
         pred = design @ beta
         sigma = float(np.std(y - pred, ddof=1)) if len(y) > 2 else float(np.std(y - pred))
         return {
-            "mean": mean,
-            "std": std,
-            "intercept": float(beta[0]),
-            "coef": beta[1:],
-            "residual_std": max(sigma, 1e-6),
+            "mean": mean, "std": std, "intercept": float(beta[0]), "coef": beta[1:],
+            "training_residual_std": max(sigma, 1e-6), "ridge_alpha": float(ridge),
+        }
+
+    @staticmethod
+    def _select_ridge_alpha(X: np.ndarray, y: np.ndarray) -> tuple[float, dict[str, Any]]:
+        """Select alpha from training data only via generalized cross-validation."""
+        mean = X.mean(axis=0)
+        std = X.std(axis=0)
+        std[std < 1e-10] = 1.0
+        Z = (X - mean) / std
+        design = np.column_stack([np.ones(len(Z)), Z])
+        xtx = design.T @ design
+        xty = design.T @ y
+        n = len(y)
+        scores: list[tuple[float, float]] = []
+        for alpha in RIDGE_ALPHA_GRID:
+            reg = np.eye(design.shape[1]) * alpha
+            reg[0, 0] = 0.0
+            inv = np.linalg.pinv(xtx + reg)
+            beta = inv @ xty
+            residual = y - design @ beta
+            rss = float(residual @ residual)
+            effective_df = float(np.trace(inv @ xtx))
+            denominator = max(1e-9, 1.0 - effective_df / max(1, n))
+            gcv = (rss / max(1, n)) / (denominator * denominator)
+            scores.append((float(gcv), float(alpha)))
+        gcv, alpha = min(scores, key=lambda pair: (pair[0], pair[1]))
+        return alpha, {
+            "method": "training_only_generalized_cross_validation",
+            "candidate_alphas": list(RIDGE_ALPHA_GRID),
+            "selected_gcv": gcv,
         }
 
     @classmethod
     def _fit_fusion_model(
-        cls,
-        history: pd.DataFrame,
-        items: list[IntelligenceItem],
-        horizon: str,
-    ) -> tuple[dict[str, Any], dict[str, float], dict[str, Any]]:
+        cls, history: pd.DataFrame, items: list[IntelligenceItem], horizon: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         days = HORIZON_DAYS[horizon]
         technical = feature_frame(history)
         alt = cls._map_items_to_market_dates(history.index, items)
         features = technical.join(alt, how="left").fillna(0.0)
-        # Reddit is intentionally excluded from fitted model weights. Reddit's
-        # current sentiment is applied later as a small, fixed inference-only
-        # overlay so API user content is not used to train an algorithmic model.
         names = list(TECHNICAL_FEATURES) + ["news_sentiment", "news_volume"]
         target = history["close"].shift(-days) / history["close"] - 1.0
         joined = features[names].assign(target=target).replace([np.inf, -np.inf], np.nan).dropna()
@@ -810,23 +853,51 @@ class LiveIntelligenceService:
             raise LiveIntelligenceError("Not enough clean historical observations to fit an on-demand model")
 
         n_val = max(20, int(len(joined) * 0.2)) if len(joined) >= 120 else max(10, int(len(joined) * 0.15))
-        train = joined.iloc[:-n_val]
-        valid = joined.iloc[-n_val:]
-        train_fit = cls._ridge_fit(train[names].to_numpy(float), train["target"].to_numpy(float))
+        validation_start = len(joined) - n_val
+        train_end = validation_start - days
+        if train_end < 25:
+            raise LiveIntelligenceError(
+                f"Not enough observations for purged {horizon} validation after reserving a {days}-row gap"
+            )
+        train = joined.iloc[:train_end]
+        purged = joined.iloc[train_end:validation_start]
+        valid = joined.iloc[validation_start:]
+
+        X_train = train[names].to_numpy(float)
+        y_train = train["target"].to_numpy(float)
+        ridge_alpha, alpha_meta = cls._select_ridge_alpha(X_train, y_train)
+        train_fit = cls._ridge_fit(X_train, y_train, ridge=ridge_alpha)
         zv = (valid[names].to_numpy(float) - train_fit["mean"]) / train_fit["std"]
         val_pred = train_fit["intercept"] + zv @ train_fit["coef"]
         val_y = valid["target"].to_numpy(float)
-        mae = float(np.mean(np.abs(val_y - val_pred)))
+        residuals = val_y - val_pred
+        mae = float(np.mean(np.abs(residuals)))
         directional = float(np.mean(np.sign(val_y) == np.sign(val_pred)))
         correlation = float(np.corrcoef(val_y, val_pred)[0, 1]) if len(valid) > 2 and np.std(val_pred) > 0 and np.std(val_y) > 0 else 0.0
+        holdout_sigma = float(np.std(residuals, ddof=1)) if len(residuals) > 1 else float(np.abs(residuals[0]))
+        holdout_sigma = max(holdout_sigma, 1e-6)
+        effective_obs = max(1, int(math.ceil(len(valid) / max(1, days))))
+        reliability = "LOW" if effective_obs < 5 else "MEDIUM" if effective_obs < 15 else "HIGH"
 
-        final_fit = cls._ridge_fit(joined[names].to_numpy(float), joined["target"].to_numpy(float))
-        return final_fit, {"mae": mae, "directional_accuracy": directional, "correlation": correlation}, {
-            "feature_names": names,
-            "training_rows": len(joined),
-            "train_start": joined.index.min().date().isoformat(),
-            "train_end": joined.index.max().date().isoformat(),
+        final_fit = cls._ridge_fit(joined[names].to_numpy(float), joined["target"].to_numpy(float), ridge=ridge_alpha)
+        validation = {
+            "mae": mae, "directional_accuracy": directional, "correlation": correlation,
+            "residual_std": holdout_sigma, "rows": len(valid), "purge_rows": len(purged),
+            "effective_non_overlapping_observations": effective_obs, "reliability": reliability,
         }
+        meta = {
+            "feature_names": names,
+            "training_rows": len(train),
+            "fit_rows_before_holdout": len(train),
+            "final_refit_rows": len(joined),
+            "train_start": train.index.min().date().isoformat(),
+            "train_end": train.index.max().date().isoformat(),
+            "validation_start": valid.index.min().date().isoformat(),
+            "validation_end": valid.index.max().date().isoformat(),
+            "ridge_alpha": ridge_alpha,
+            "ridge_alpha_selection": alpha_meta,
+        }
+        return final_fit, validation, meta
 
     @staticmethod
     def _trend_metrics(history: pd.DataFrame) -> dict[str, Any]:
@@ -847,35 +918,26 @@ class LiveIntelligenceService:
         else:
             regime = "mixed"
         return {
-            "current_price": round(current, 4),
-            "returns_pct": {k: round(v, 3) for k, v in returns.items()},
-            "annualised_volatility_pct": round(annual_vol, 3),
-            "high_52w": round(float(rolling_252.max()), 4),
+            "current_price": round(current, 4), "returns_pct": {k: round(v, 3) for k, v in returns.items()},
+            "annualised_volatility_pct": round(annual_vol, 3), "high_52w": round(float(rolling_252.max()), 4),
             "low_52w": round(float(rolling_252.min()), 4),
             "distance_to_20d_ma_pct": round((current / ma20 - 1.0) * 100.0, 3),
             "distance_to_50d_ma_pct": round((current / ma50 - 1.0) * 100.0, 3),
-            "trend_regime": regime,
-            "history_rows": int(len(history)),
-            "history_start": history.index.min().date().isoformat(),
-            "history_end": history.index.max().date().isoformat(),
+            "trend_regime": regime, "history_rows": int(len(history)),
+            "history_start": history.index.min().date().isoformat(), "history_end": history.index.max().date().isoformat(),
         }
 
     @staticmethod
-    def _probabilities(predicted_return: float, sigma: float) -> tuple[str, float, float, float, float]:
-        score = float(np.clip(predicted_return / max(sigma, 1e-6), -8.0, 8.0))
-        buy = math.exp(score)
-        sell = math.exp(-score)
-        hold = math.exp(-abs(score) * 0.35 + 0.2)
-        total = buy + sell + hold
-        pb, ps, ph = buy / total, sell / total, hold / total
-        maximum = max(pb, ps, ph)
-        if pb == maximum:
-            signal = "STRONG_BUY" if pb >= 0.72 else "BUY"
-        elif ps == maximum:
-            signal = "STRONG_SELL" if ps >= 0.72 else "SELL"
-        else:
-            signal = "HOLD"
-        return signal, maximum, pb, ph, ps
+    def _signal_scores(predicted_return: float, sigma: float) -> tuple[str, float, float, float, float, float]:
+        """Return bounded directional scores; these are explicitly not probabilities."""
+        z = float(np.clip(predicted_return / max(sigma, 1e-6), -8.0, 8.0))
+        signed_score = float(np.tanh(z / 2.0))
+        bullish = max(0.0, signed_score)
+        bearish = max(0.0, -signed_score)
+        neutral = max(0.0, 1.0 - abs(signed_score))
+        strength = abs(signed_score)
+        signal = "BULLISH" if signed_score >= 0.25 else "BEARISH" if signed_score <= -0.25 else "NEUTRAL"
+        return signal, strength, bullish, neutral, bearish, signed_score
 
     async def analyze(
         self,
@@ -937,7 +999,7 @@ class LiveIntelligenceService:
         z = (x - fit["mean"]) / fit["std"]
         contributions = z * fit["coef"]
         base_pred = float(fit["intercept"] + z @ fit["coef"])
-        sigma = float(fit["residual_std"])
+        sigma = float(validation["residual_std"])
 
         # Inference-only Reddit overlay. The coefficient is deliberately fixed
         # and bounded rather than learned from Reddit content. Higher discussion
@@ -948,21 +1010,18 @@ class LiveIntelligenceService:
         reddit_sentiment = float(current_alt.get("reddit_sentiment", 0.0))
         reddit_evidence_strength = float(np.tanh(reddit_volume / 1.5 + reddit_engagement / 8.0))
         reddit_overlay = (
-            sigma * 0.25 * reddit_sentiment * (0.25 + 0.75 * reddit_evidence_strength)
+            sigma * REDDIT_MAX_RESIDUAL_SIGMA_FRACTION * reddit_sentiment * (0.25 + 0.75 * reddit_evidence_strength)
             if reddit_volume > 0 else 0.0
         )
         raw_pred = base_pred + reddit_overlay
         caps = {"1d": 0.10, "5d": 0.25, "20d": 0.45}
         predicted_return = float(np.clip(raw_pred, -caps[horizon], caps[horizon]))
-        signal, base_confidence, buy_prob, hold_prob, sell_prob = self._probabilities(predicted_return, sigma)
+        signal, signal_strength, bullish_score, neutral_score, bearish_score, signed_signal_score = self._signal_scores(predicted_return, sigma)
 
         news_summary = self._weighted_source_summary(news)
         reddit_summary = self._weighted_source_summary(reddit_posts + reddit_comments)
         source_count = len(news) + len(reddit_posts) + len(reddit_comments)
         source_coverage = min(1.0, math.log1p(source_count) / math.log(101.0))
-        validation_quality = float(np.clip((validation["directional_accuracy"] - 0.45) / 0.20, 0.0, 1.0))
-        evidence_quality = float(np.clip(0.55 * source_coverage + 0.45 * validation_quality, 0.0, 1.0))
-        confidence = float(np.clip(base_confidence * (0.60 + 0.40 * evidence_quality), 0.0, 0.95))
 
         grouped = {"technical": 0.0, "news": 0.0, "reddit": float(reddit_overlay)}
         feature_contrib: dict[str, float] = {}
@@ -1005,16 +1064,17 @@ class LiveIntelligenceService:
             },
             "prediction": {
                 "signal": signal,
-                "confidence": round(confidence, 4),
+                "signal_strength": round(signal_strength, 4),
+                "signal_score": round(signed_signal_score, 4),
                 "predicted_return_pct": round(predicted_return * 100.0, 4),
                 "predicted_price": round(current_price * (1.0 + predicted_return), 4),
                 "lower_bound": round(current_price * (1.0 + lower_return), 4),
                 "upper_bound": round(current_price * (1.0 + upper_return), 4),
-                "buy_probability": round(buy_prob, 4),
-                "hold_probability": round(hold_prob, 4),
-                "sell_probability": round(sell_prob, 4),
-                "residual_volatility_pct": round(sigma * 100.0, 4),
-                "evidence_quality": round(evidence_quality, 4),
+                "bullish_score": round(bullish_score, 4),
+                "neutral_score": round(neutral_score, 4),
+                "bearish_score": round(bearish_score, 4),
+                "holdout_residual_volatility_pct": round(sigma * 100.0, 4),
+                "source_coverage": round(source_coverage, 4),
                 "contribution_mix": contribution_pct,
                 "top_drivers": [
                     {"feature": name, "effect": round(value, 6), "direction": "up" if value >= 0 else "down"}
@@ -1029,20 +1089,33 @@ class LiveIntelligenceService:
                 "inference_only_features": ["reddit_sentiment", "reddit_volume", "reddit_engagement"],
                 "reddit_overlay": {
                     "type": "fixed_bounded_inference_overlay",
-                    "max_residual_sigma_fraction": 0.25,
+                    "max_residual_sigma_fraction": REDDIT_MAX_RESIDUAL_SIGMA_FRACTION,
+                    "selection": "fixed_design_guardrail_not_empirically_optimized",
                     "current_effect": round(float(reddit_overlay), 6),
                 },
                 "training_rows": meta["training_rows"],
+                "fit_rows_before_holdout": meta["fit_rows_before_holdout"],
+                "final_refit_rows": meta["final_refit_rows"],
                 "train_start": meta["train_start"],
                 "train_end": meta["train_end"],
+                "validation_start": meta["validation_start"],
+                "validation_end": meta["validation_end"],
+                "ridge_alpha": round(float(meta["ridge_alpha"]), 6),
+                "ridge_alpha_selection": meta["ridge_alpha_selection"],
                 "validation": {
                     "mae_pct_points": round(validation["mae"] * 100.0, 4),
                     "directional_accuracy": round(validation["directional_accuracy"], 4),
                     "correlation": round(validation["correlation"], 4),
+                    "rows": int(validation["rows"]),
+                    "purge_rows": int(validation["purge_rows"]),
+                    "effective_non_overlapping_observations": int(validation["effective_non_overlapping_observations"]),
+                    "reliability": str(validation["reliability"]),
+                    "residual_std_pct_points": round(validation["residual_std"] * 100.0, 4),
                 },
                 "methodology": (
-                    "Ridge regression is fit on historical technical features plus dated news aggregates. "
-                    "The latest seven-day Reddit state influences the forecast only through a fixed, bounded inference-time overlay; Reddit content never enters fitted model weights."
+                    "Ridge regression is fit on historical technical features plus market-session-aligned news aggregates. "
+                    "The chronological holdout is separated from training by a horizon-length purge gap; ridge alpha is selected from training data only with generalized cross-validation. "
+                    "Forecast intervals use holdout residuals. Current Reddit affects inference only through a fixed, bounded design guardrail and never enters fitted model weights."
                 ),
             },
             "evidence": {
@@ -1061,6 +1134,6 @@ class LiveIntelligenceService:
                 "social_sentiment": "deterministic financial lexicon fallback",
             },
             "disclaimer": (
-                "Experimental research output, not investment advice. Confidence measures model/evidence consistency, not the probability of profit."
+                "Experimental research output, not investment advice. Signal scores are heuristic diagnostics, not calibrated probabilities or probabilities of profit; validation reliability can be low when compact history yields few non-overlapping observations."
             ),
         }
