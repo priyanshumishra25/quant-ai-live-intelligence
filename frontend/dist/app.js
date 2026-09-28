@@ -195,11 +195,11 @@ async function boot() {
         ticker.innerHTML = models.tickers.map(t => `<option>${esc(t)}</option>`).join("");
         currentTicker = ticker.value;
         $("releaseMeta").textContent = `v${health.version} · ${health.model_count} persisted artefacts · ${health.cache_backend} cache`;
-        $("providerState").textContent = liveConfigured ? `LIVE READY · Alpha Vantage${redditConfigured ? " + Reddit" : " · Reddit optional"}` : "LIVE KEYS NOT CONFIGURED · offline lab remains available";
+        $("providerState").textContent = liveConfigured ? `LIVE READY · click Analyze · free-tier caching enabled${redditConfigured ? " · Reddit ready" : " · Reddit optional"}` : "LIVE KEYS NOT CONFIGURED · offline lab remains available";
         $("providerState").className = liveConfigured ? "provider-state ready" : "provider-state";
-        status("ok", liveConfigured ? "live intelligence ready" : "offline research mode");
-        if (liveConfigured)
-            await runLiveAnalysis();
+        status("ok", liveConfigured ? "live intelligence ready · no provider calls made yet" : "offline research mode");
+        // Deliberately do NOT run a live analysis during boot. Free-tier provider
+        // quotas should only be consumed after the user explicitly clicks Analyze.
         await refreshExplorer();
     }
     catch (e) {
