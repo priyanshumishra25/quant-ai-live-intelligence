@@ -13,8 +13,18 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if (ROOT / ".env").exists():
-        fail(".env must not be committed")
+    # A local `.env` is expected during development. It is a release problem
+    # only if Git tracks it; `.gitignore` already excludes it. Archive packaging
+    # performs an additional hard check that `.env` is absent from the ZIP.
+    git_dir = ROOT / ".git"
+    if git_dir.exists():
+        import subprocess
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", ".env"],
+            cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+        )
+        if tracked.returncode == 0:
+            fail(".env is tracked by git; remove it from the index immediately")
     required = [
         "api/main.py", "frontend/index.html", "frontend/src/app.ts", "frontend/src/api.ts", "frontend/dist/app.js",
         "deployment/Dockerfile", "deployment/docker-compose.yml",
