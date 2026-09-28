@@ -87,3 +87,11 @@ This repository is a research/portfolio platform. A regulated or capital-bearing
 - execution venue integration separated from forecasting;
 - compliance/legal review of alternative-data rights;
 - kill switches and human approval where appropriate.
+
+## Free-tier API budget engineering
+
+The live path treats external API quota as a product constraint, not an afterthought. The browser never launches a live analysis automatically. Symbol resolution, history, news and Reddit results are cached independently beneath the final forecast cache, so changing model horizon does not trigger redundant upstream calls.
+
+Alpha Vantage calls are serialized and paced. Daily history defaults to the provider's compact mode, which supplies enough recent observations for this lightweight portfolio model while avoiding the premium-only full-history setting. Explicit uppercase ticker input can also bypass symbol lookup.
+
+This layered cache design is intentional: caching only the final forecast would still waste quota whenever a user changed `5d` to `20d`, because the underlying market/news data are identical.

@@ -86,7 +86,9 @@ The API never substitutes random/synthetic live evidence when a provider fails.
 
 ## Caching
 
-`/api/v1/intelligence/analyze` is cached by normalized query, horizon and comment mode. Default TTL is five minutes.
+`/api/v1/intelligence/analyze` is cached by normalized query, horizon and comment mode. The default final-response TTL is 30 minutes.
+
+Provider data are cached below that layer as well: symbol resolution for 7 days, daily history for 6 hours, news for 30 minutes, and Reddit retrieval for 10 minutes. This means a horizon change can reuse the same upstream evidence without spending additional provider calls.
 
 Local development can use the in-memory cache. Docker Compose uses Redis. Provider credentials remain server-side.
 

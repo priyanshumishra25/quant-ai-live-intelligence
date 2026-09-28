@@ -1,6 +1,6 @@
 # Portfolio / Publication Readiness
 
-## What v3.0.0 is ready for
+## What v3.0.1 is ready for
 
 The repository is suitable as a public **software + AI engineering portfolio project** once the author selects a licence and replaces placeholder author metadata.
 
