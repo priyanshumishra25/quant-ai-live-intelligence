@@ -30,10 +30,11 @@ export interface Prediction {
   lower_bound: number;
   upper_bound: number;
   signal: string;
-  signal_confidence: number;
-  buy_probability: number;
-  sell_probability: number;
-  hold_probability: number;
+  signal_strength: number;
+  signal_score: number;
+  bullish_score: number;
+  neutral_score: number;
+  bearish_score: number;
   predicted_volatility_pct: number;
   risk_score: number;
   var_95: number;
@@ -168,16 +169,17 @@ export interface LiveIntelligence {
   };
   prediction: {
     signal: string;
-    confidence: number;
+    signal_strength: number;
+    signal_score: number;
     predicted_return_pct: number;
     predicted_price: number;
     lower_bound: number;
     upper_bound: number;
-    buy_probability: number;
-    hold_probability: number;
-    sell_probability: number;
-    residual_volatility_pct: number;
-    evidence_quality: number;
+    bullish_score: number;
+    neutral_score: number;
+    bearish_score: number;
+    holdout_residual_volatility_pct: number;
+    source_coverage: number;
     contribution_mix: Record<"technical"|"news"|"reddit", number>;
     top_drivers: Array<{feature:string; effect:number; direction:"up"|"down"}>;
   };
@@ -187,12 +189,27 @@ export interface LiveIntelligence {
     technical_features: string[];
     alternative_data_features: string[];
     training_rows: number;
+    fit_rows_before_holdout: number;
+    final_refit_rows: number;
     train_start: string;
     train_end: string;
+    validation_start: string;
+    validation_end: string;
+    ridge_alpha: number;
+    ridge_alpha_selection: {
+      method: string;
+      candidate_alphas: number[];
+      selected_gcv: number;
+    };
     validation: {
       mae_pct_points: number;
       directional_accuracy: number;
       correlation: number;
+      rows: number;
+      purge_rows: number;
+      effective_non_overlapping_observations: number;
+      reliability: "LOW"|"MEDIUM"|"HIGH";
+      residual_std_pct_points: number;
     };
     methodology: string;
   };

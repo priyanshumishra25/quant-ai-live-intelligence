@@ -21,10 +21,12 @@ def test_persisted_model_inference_is_deterministic():
         "ret_1d", "ret_5d", "ma_gap_5", "ma_gap_20", "vol_10", "momentum_10"
     }
     assert math.isclose(
-        first["buy_probability"] + first["hold_probability"] + first["sell_probability"],
+        first["bullish_score"] + first["neutral_score"] + first["bearish_score"],
         1.0,
         abs_tol=2e-4,
     )
+    assert "buy_probability" not in first
+    assert 0.0 <= first["signal_strength"] <= 1.0
 
 
 def test_fixture_tickers_match_artifact_registry():

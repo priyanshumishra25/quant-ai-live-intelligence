@@ -58,11 +58,11 @@
       <div class="grid two">
         <section class="panel"><header><span>Historical trend</span><small>up to 260 recent closes shown</small></header><svg id="livePriceChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg><div id="liveTrendMetrics" class="metrics compact"></div></section>
         <section class="panel"><header><span>Source sentiment</span><small>dated and engagement-weighted</small></header><div id="liveSourceSummary" class="source-summary-grid"></div><p id="sourceErrors" class="note"></p></section>
-        <section class="panel"><header><span>Prediction distribution</span><small>model score + evidence-quality adjustment</small></header><div id="liveProbabilities" class="probabilities"></div><p id="liveDisclaimer" class="note"></p></section>
+        <section class="panel"><header><span>Signal score decomposition</span><small>heuristic scores · explicitly not probabilities</small></header><div id="liveProbabilities" class="probabilities"></div><p id="liveDisclaimer" class="note"></p></section>
         <section class="panel"><header><span>Why this forecast?</span><small>absolute contribution by source family</small></header><div id="contributionMix" class="features"></div><div id="liveDrivers" class="movers"></div></section>
       </div>
 
-      <section class="panel"><header><span>Model validation</span><small>chronological holdout before final refit</small></header><div id="liveModelMetrics" class="metrics"></div><p id="liveMethodology" class="note"></p></section>
+      <section class="panel"><header><span>Model validation</span><small>purged chronological holdout before final refit</small></header><div id="liveModelMetrics" class="metrics"></div><p id="liveMethodology" class="note"></p></section>
 
       <section class="panel"><header><span>Evidence stream</span><small>source-attributed items used to construct the live state</small></header><div id="evidenceList" class="evidence-grid"><div class="empty">Configure provider keys and run an analysis to populate live evidence.</div></div></section>
     </section>
@@ -83,7 +83,7 @@
       <div class="grid two">
         <section class="panel"><header><span>Price trace</span><small>bundled deterministic fixture</small></header><svg id="priceChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg></section>
         <section class="panel"><header><span>Model explanation</span><small>normalised contribution</small></header><div id="featureList" class="features"></div><p id="explanation" class="note"></p></section>
-        <section class="panel"><header><span>Signal distribution</span><small>calibrated research score</small></header><div id="probabilities" class="probabilities"></div></section>
+        <section class="panel"><header><span>Signal score decomposition</span><small>heuristic scores · not probabilities</small></header><div id="probabilities" class="probabilities"></div></section>
         <section class="panel"><header><span>Market context</span><small>fixture-derived diagnostics</small></header><div id="marketMetrics" class="metrics compact"></div><div id="movers" class="movers"></div></section>
       </div>
       <section class="panel"><header><span>Walk-forward evaluation</span><small>refit model at each fold · cost aware</small></header><div id="backtestMetrics" class="metrics"></div><svg id="equityChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg><p id="backtestWarning" class="note"></p></section>
@@ -101,7 +101,7 @@
     </section>
 
     <section id="systemView" class="view" hidden>
-      <section class="panel"><header><span>Runtime telemetry</span><small>interview-visible operational behaviour</small></header><div id="systemMetrics" class="metrics"></div></section>
+      <section class="panel"><header><span>Runtime telemetry</span><small>operational health and request behaviour</small></header><div id="systemMetrics" class="metrics"></div></section>
       <section class="panel"><header><span>Default architecture</span><small>live + reproducible paths share the same API</small></header><div id="architecture" class="architecture"></div></section>
       <div class="grid two"><section class="panel"><header><span>Engineering capabilities</span><small>implemented, not aspirational</small></header><ul id="capabilities" class="capabilities"></ul></section><section class="panel"><header><span>Design principle</span><small>product judgement</small></header><div class="principle"><b>Live when useful. Reproducible by default.</b><p>The product isolates provider adapters from modelling and keeps deterministic fixtures for CI. Live evidence is attributed, cached briefly and allowed to degrade by source instead of making the whole request fail.</p></div></section></div>
     </section>

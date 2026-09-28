@@ -113,19 +113,13 @@ class PredictionService:
         lower = current_price * (1.0 + predicted_return - 1.96 * residual_std)
         upper = current_price * (1.0 + predicted_return + 1.96 * residual_std)
 
-        score = predicted_return / residual_std
-        buy_raw = math.exp(max(min(score, 20), -20))
-        sell_raw = math.exp(max(min(-score, 20), -20))
-        hold_raw = math.exp(-abs(score) * 0.5)
-        total = buy_raw + sell_raw + hold_raw
-        buy_prob, sell_prob, hold_prob = buy_raw / total, sell_raw / total, hold_raw / total
-        max_prob = max(buy_prob, sell_prob, hold_prob)
-        if buy_prob == max_prob:
-            signal = "STRONG_BUY" if buy_prob >= 0.70 else "BUY"
-        elif sell_prob == max_prob:
-            signal = "STRONG_SELL" if sell_prob >= 0.70 else "SELL"
-        else:
-            signal = "HOLD"
+        score = float(np.clip(predicted_return / residual_std, -8.0, 8.0))
+        signed_signal_score = float(np.tanh(score / 2.0))
+        bullish_score = max(0.0, signed_signal_score)
+        bearish_score = max(0.0, -signed_signal_score)
+        neutral_score = max(0.0, 1.0 - abs(signed_signal_score))
+        signal_strength = abs(signed_signal_score)
+        signal = "BULLISH" if signed_signal_score >= 0.25 else "BEARISH" if signed_signal_score <= -0.25 else "NEUTRAL"
 
         contributions = z * coef
         total_abs = float(np.abs(contributions).sum()) or 1.0
@@ -158,10 +152,11 @@ class PredictionService:
             "lower_bound": round(lower, 4),
             "upper_bound": round(upper, 4),
             "signal": signal,
-            "signal_confidence": round(max_prob, 4),
-            "buy_probability": round(buy_prob, 4),
-            "sell_probability": round(sell_prob, 4),
-            "hold_probability": round(hold_prob, 4),
+            "signal_strength": round(signal_strength, 4),
+            "signal_score": round(signed_signal_score, 4),
+            "bullish_score": round(bullish_score, 4),
+            "neutral_score": round(neutral_score, 4),
+            "bearish_score": round(bearish_score, 4),
             "predicted_volatility_pct": round(vol * 100.0, 3),
             "risk_score": round(risk_score, 3),
             "var_95": round(var_95, 6),

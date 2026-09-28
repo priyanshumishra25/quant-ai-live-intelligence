@@ -27,18 +27,18 @@ function renderPrediction(p:Prediction) {
   $("heroReturn").textContent = pct(p.predicted_return_pct);
   $("heroReturn").className = p.predicted_return_pct >= 0 ? "positive" : "negative";
   $("heroSignal").textContent = p.signal.replaceAll("_"," ");
-  $("heroSignal").className = `signal ${p.signal.includes("BUY")?"positive":p.signal.includes("SELL")?"negative":""}`;
+  $("heroSignal").className = `signal ${p.signal.includes("BULLISH")?"positive":p.signal.includes("BEARISH")?"negative":""}`;
   $("heroMeta").textContent = `${p.horizon} horizon · ${p.model_metadata.model_type} · ${p.latency_ms.toFixed(2)} ms ${p.cache_hit?"· cache hit":""}`;
   $("predictionMetrics").innerHTML = [
     metric("Target",money(p.predicted_price)), metric("95% low",money(p.lower_bound)), metric("95% high",money(p.upper_bound)),
-    metric("Confidence",`${(p.signal_confidence*100).toFixed(1)}%`), metric("Volatility",`${p.predicted_volatility_pct.toFixed(1)}%`), metric("Risk",`${p.risk_score.toFixed(1)}/10`),
+    metric("Signal strength",`${(p.signal_strength*100).toFixed(1)}%`,`heuristic score · not probability`), metric("Volatility",`${p.predicted_volatility_pct.toFixed(1)}%`), metric("Risk",`${p.risk_score.toFixed(1)}/10`),
   ].join("");
   const features = Object.entries(p.feature_importance).sort((a,b)=>b[1]-a[1]).slice(0,6);
   $("featureList").innerHTML = features.map(([name,val]) => `<div class="feature"><span>${esc(name)}</span><i><em style="width:${Math.min(100,val*260)}%"></em></i><b>${(val*100).toFixed(1)}%</b></div>`).join("");
   $("explanation").textContent = p.explanation;
   $("probabilities").innerHTML = [
-    ["BUY",p.buy_probability,"positive"],["HOLD",p.hold_probability,"neutral"],["SELL",p.sell_probability,"negative"],
-  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}%</b></div>`).join("");
+    ["BULLISH",p.bullish_score,"positive"],["NEUTRAL",p.neutral_score,"neutral"],["BEARISH",p.bearish_score,"negative"],
+  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}</b></div>`).join("");
 }
 
 async function refreshExplorer() {
@@ -62,15 +62,15 @@ function renderLive(result:LiveIntelligence) {
   $("liveCompany").textContent = `${result.company.name} · ${result.ticker}`;
   $("livePrice").textContent = money(m.current_price);
   $("liveSignal").textContent = p.signal.replaceAll("_"," ");
-  $("liveSignal").className=`signal ${p.signal.includes("BUY")?"positive":p.signal.includes("SELL")?"negative":""}`;
+  $("liveSignal").className=`signal ${p.signal.includes("BULLISH")?"positive":p.signal.includes("BEARISH")?"negative":""}`;
   $("livePredReturn").textContent = pct(p.predicted_return_pct);
   $("livePredReturn").className = p.predicted_return_pct>=0?"positive":"negative";
   $("liveMeta").textContent = `${result.horizon} horizon · ${m.trend_regime} · ${result.latency_ms.toFixed(0)} ms ${result.cache_hit?"· cached":""}`;
   $("livePredictionMetrics").innerHTML = [
     metric("Target",money(p.predicted_price)), metric("95% low",money(p.lower_bound)), metric("95% high",money(p.upper_bound)),
-    metric("Confidence",`${(p.confidence*100).toFixed(1)}%`,`evidence ${(p.evidence_quality*100).toFixed(0)}%`),
-    metric("Dir. accuracy",`${(result.model.validation.directional_accuracy*100).toFixed(1)}%`,`chronological holdout`),
-    metric("Residual σ",`${p.residual_volatility_pct.toFixed(2)}%`,`forecast error scale`),
+    metric("Signal strength",`${(p.signal_strength*100).toFixed(1)}%`,`heuristic score · not probability`),
+    metric("Source coverage",`${(p.source_coverage*100).toFixed(0)}%`,`evidence-volume diagnostic`),
+    metric("Holdout σ",`${p.holdout_residual_volatility_pct.toFixed(2)}%`,`purged holdout residuals`),
   ].join("");
   lineChart($("livePriceChart") as unknown as SVGSVGElement,[{values:result.history.map(x=>x.close),className:"primary"}]);
 
@@ -84,8 +84,8 @@ function renderLive(result:LiveIntelligence) {
     sourceSummaryCard("Combined",s.combined_score,s.news.volume+s.reddit.volume,s.news.engagement+s.reddit.engagement,"65% news / 35% Reddit diagnostic");
 
   $("liveProbabilities").innerHTML = [
-    ["BUY",p.buy_probability,"positive"],["HOLD",p.hold_probability,"neutral"],["SELL",p.sell_probability,"negative"],
-  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}%</b></div>`).join("");
+    ["BULLISH",p.bullish_score,"positive"],["NEUTRAL",p.neutral_score,"neutral"],["BEARISH",p.bearish_score,"negative"],
+  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}</b></div>`).join("");
 
   $("contributionMix").innerHTML = (["technical","news","reddit"] as const).map(name=>{
     const value=p.contribution_mix[name] || 0;
@@ -94,12 +94,12 @@ function renderLive(result:LiveIntelligence) {
   $("liveDrivers").innerHTML = p.top_drivers.map(d=>`<div class="row"><strong>${esc(d.feature)}</strong><span class="${d.direction==='up'?"positive":"negative"}">${d.direction==='up'?"↑":"↓"} ${Math.abs(d.effect).toFixed(4)}</span></div>`).join("");
 
   $("liveModelMetrics").innerHTML = [
-    metric("Training rows",String(result.model.training_rows),`${result.model.train_start} → ${result.model.train_end}`),
+    metric("Fit rows",String(result.model.fit_rows_before_holdout),`${result.model.train_start} → purged holdout`),
+    metric("Holdout rows",String(result.model.validation.rows),`purge gap ${result.model.validation.purge_rows} rows`),
+    metric("Effective obs",`≈${result.model.validation.effective_non_overlapping_observations}`,`${result.model.validation.reliability} validation reliability`),
+    metric("Directional acc.",`${(result.model.validation.directional_accuracy*100).toFixed(1)}%`,`diagnostic only`),
     metric("Holdout MAE",`${result.model.validation.mae_pct_points.toFixed(2)} pp`),
-    metric("Correlation",result.model.validation.correlation.toFixed(3)),
-    metric("News",String(result.evidence.news_count)),
-    metric("Reddit posts",String(result.evidence.reddit_post_count)),
-    metric("Reddit comments",String(result.evidence.reddit_comment_count)),
+    metric("Ridge α",result.model.ridge_alpha.toFixed(2),`training-only GCV`),
   ].join("");
   $("liveMethodology").textContent = result.model.methodology;
 
