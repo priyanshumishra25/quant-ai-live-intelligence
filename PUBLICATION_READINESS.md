@@ -2,7 +2,7 @@
 
 ## What v3.0.2 is ready for
 
-The repository is suitable as a public **software + AI engineering project** after the owner chooses a software licence and confirms the public Git history contains no secrets.
+The repository is suitable as a public software + AI engineering project after the owner confirms the public Git history contains no secrets and completes the final release checks below.
 
 Repository-controlled readiness work is implemented:
 
@@ -54,10 +54,11 @@ A scientific/performance claim requires a separately frozen empirical protocol i
 
 ## Owner actions before public release
 
-- [ ] Choose and add a software licence. This is a repository-owner/legal choice and is intentionally not selected automatically.
-- [ ] Inspect Git history for any previously committed provider secrets and rotate any exposed credentials.
-- [ ] Run `make verify` from a clean checkout.
-- [ ] Build both Docker images in CI.
+- [x] Add MIT software licence.
+- [x] Inspect Git history for any previously committed provider secrets and rotate any exposed credentials.
+- [x] Run `make verify` from a clean checkout.
+- [x] Build both Docker images in CI.
+- [x] `CITATION.cff` identifies the author, repository, release version and MIT licence.
 - [ ] Add screenshots/GIF if desired.
 - [ ] If hosting a demo, inject provider keys and authentication secrets only server-side.
 - [ ] Confirm provider terms permit the intended hosted use.

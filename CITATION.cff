@@ -1,10 +1,16 @@
 cff-version: "1.2.0"
-message: "If you use this software in academic work, please cite the archived software release and associated manuscript when available."
+message: "If you use this software in academic work, please cite this software release."
 title: "Quant AI Live Stock Intelligence"
 type: software
 version: "3.0.2"
 date-released: 2026-09-28
+
 authors:
   - family-names: "Mishra"
     given-names: "Priyanshu"
+
+repository-code: "https://github.com/priyanshumishra25/quant-ai-live-intelligence"
+url: "https://github.com/priyanshumishra25/quant-ai-live-intelligence"
+license: "MIT"
+
 abstract: "Software and AI engineering platform for live stock intelligence using historical market data, market-session-aligned news sentiment, Reddit evidence, purged chronological validation, explainable on-demand forecasting, and a deterministic offline research path."
