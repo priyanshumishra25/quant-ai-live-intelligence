@@ -21,12 +21,21 @@ import httpx
 import numpy as np
 import pandas as pd
 
+from services.cache import get_json, set_json
 from services.prediction_service import FEATURES as TECHNICAL_FEATURES
 from services.prediction_service import HORIZON_DAYS, feature_frame
 
 
 class LiveIntelligenceError(RuntimeError):
     """Raised when a live provider cannot satisfy an intelligence request."""
+
+
+class ProviderLimitError(LiveIntelligenceError):
+    """Provider quota/rate-limit/premium boundary with a machine-readable kind."""
+
+    def __init__(self, message: str, kind: str = "quota"):
+        super().__init__(message)
+        self.kind = kind
 
 
 @dataclass(slots=True)
@@ -140,11 +149,21 @@ class FinancialLexiconSentiment:
 class AlphaVantageClient:
     BASE = "https://www.alphavantage.co/query"
 
-    def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        api_key: str,
+        client: httpx.AsyncClient | None = None,
+        outputsize: str = "compact",
+        min_interval_seconds: float = 1.10,
+    ):
         self.api_key = api_key.strip()
         self._owns_client = client is None
         self.client = client or httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=8.0))
         self.sentiment = FinancialLexiconSentiment()
+        self.outputsize = "full" if str(outputsize).lower() == "full" else "compact"
+        self.min_interval_seconds = max(0.0, float(min_interval_seconds))
+        self._request_lock = asyncio.Lock()
+        self._last_request_at = 0.0
 
     @property
     def configured(self) -> bool:
@@ -158,16 +177,44 @@ class AlphaVantageClient:
         if not self.configured:
             raise LiveIntelligenceError("ALPHA_VANTAGE_KEY is required for live stock intelligence")
         params["apikey"] = self.api_key
-        try:
-            response = await self.client.get(self.BASE, params=params)
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise LiveIntelligenceError(f"Alpha Vantage request failed: {exc}") from exc
+
+        # Alpha Vantage's free tier is intentionally paced. Serialising calls
+        # here prevents one analysis from violating the per-second burst limit.
+        async with self._request_lock:
+            elapsed = time.monotonic() - self._last_request_at
+            wait_for = self.min_interval_seconds - elapsed
+            if wait_for > 0:
+                await asyncio.sleep(wait_for)
+            try:
+                response = await self.client.get(self.BASE, params=params)
+                response.raise_for_status()
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise LiveIntelligenceError(f"Alpha Vantage request failed: {exc}") from exc
+            finally:
+                self._last_request_at = time.monotonic()
+
         if payload.get("Error Message"):
             raise LiveIntelligenceError(str(payload["Error Message"]))
-        if payload.get("Note") or payload.get("Information"):
-            raise LiveIntelligenceError(str(payload.get("Note") or payload.get("Information")))
+        provider_message = str(payload.get("Note") or payload.get("Information") or "").strip()
+        if provider_message:
+            lower = provider_message.lower()
+            if "25 requests per day" in lower or "daily" in lower and "limit" in lower:
+                raise ProviderLimitError(
+                    "Alpha Vantage daily quota reached. Cached results and the Offline Lab still work; try live analysis again after the provider quota resets.",
+                    kind="daily_quota",
+                )
+            if "request per second" in lower or "rate limit" in lower:
+                raise ProviderLimitError(
+                    "Alpha Vantage temporary rate limit reached. Wait a few seconds and retry; the app now spaces provider calls automatically.",
+                    kind="burst_rate",
+                )
+            if "premium" in lower:
+                raise ProviderLimitError(
+                    "Alpha Vantage reports that this request needs a premium capability. The free-tier configuration should use ALPHA_VANTAGE_OUTPUTSIZE=compact.",
+                    kind="premium",
+                )
+            raise LiveIntelligenceError(provider_message)
         return payload
 
     async def search(self, query: str, limit: int = 8) -> list[StockCandidate]:
@@ -212,7 +259,7 @@ class AlphaVantageClient:
         return matches[0]
 
     async def daily_history(self, symbol: str, max_rows: int = 1500) -> pd.DataFrame:
-        payload = await self._get(function="TIME_SERIES_DAILY", symbol=symbol.upper(), outputsize="full")
+        payload = await self._get(function="TIME_SERIES_DAILY", symbol=symbol.upper(), outputsize=self.outputsize)
         series = payload.get("Time Series (Daily)")
         if not isinstance(series, dict) or not series:
             raise LiveIntelligenceError(f"No daily history returned for {symbol.upper()}")
@@ -463,6 +510,11 @@ class LiveIntelligenceService:
         reddit_fetch_limit: int = 100,
         reddit_comment_posts: int = 5,
         reddit_comments_per_post: int = 20,
+        cache: Any | None = None,
+        symbol_cache_ttl: int = 604800,
+        history_cache_ttl: int = 21600,
+        news_cache_ttl: int = 1800,
+        reddit_cache_ttl: int = 600,
     ):
         self.alpha = alpha
         self.reddit = reddit
@@ -471,6 +523,11 @@ class LiveIntelligenceService:
         self.reddit_fetch_limit = max(10, min(reddit_fetch_limit, 200))
         self.reddit_comment_posts = max(0, min(reddit_comment_posts, 10))
         self.reddit_comments_per_post = max(1, min(reddit_comments_per_post, 50))
+        self.cache = cache
+        self.symbol_cache_ttl = max(60, int(symbol_cache_ttl))
+        self.history_cache_ttl = max(60, int(history_cache_ttl))
+        self.news_cache_ttl = max(60, int(news_cache_ttl))
+        self.reddit_cache_ttl = max(60, int(reddit_cache_ttl))
 
     @property
     def configured(self) -> bool:
@@ -479,10 +536,156 @@ class LiveIntelligenceService:
     async def close(self) -> None:
         await asyncio.gather(self.alpha.close(), self.reddit.close())
 
+    @staticmethod
+    def _normalise_query(query: str) -> str:
+        return re.sub(r"\s+", " ", query.strip()).lower()
+
+    @staticmethod
+    def _looks_like_explicit_ticker(query: str) -> bool:
+        raw = query.strip()
+        # Optimisation is intentionally conservative: only clearly ticker-like
+        # uppercase inputs skip SYMBOL_SEARCH. "Apple" still resolves normally.
+        return bool(raw and raw == raw.upper() and re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", raw))
+
+    async def _cache_get(self, key: str) -> dict[str, Any] | None:
+        if self.cache is None:
+            return None
+        try:
+            return await get_json(self.cache, key)
+        except Exception:
+            return None
+
+    async def _cache_set(self, key: str, value: dict[str, Any], ttl: int) -> None:
+        if self.cache is None:
+            return
+        try:
+            await set_json(self.cache, key, value, ttl)
+        except Exception:
+            return
+
+    @staticmethod
+    def _candidate_from_cache(data: dict[str, Any]) -> StockCandidate:
+        return StockCandidate(
+            symbol=str(data.get("symbol", "")),
+            name=str(data.get("name", "")),
+            asset_type=str(data.get("asset_type", "Equity")),
+            region=str(data.get("region", "")),
+            market_open=str(data.get("market_open", "")),
+            market_close=str(data.get("market_close", "")),
+            timezone=str(data.get("timezone", "")),
+            currency=str(data.get("currency", "")),
+            match_score=float(data.get("match_score", 0.0) or 0.0),
+        )
+
+    @staticmethod
+    def _candidate_cache_dict(item: StockCandidate) -> dict[str, Any]:
+        return {
+            "symbol": item.symbol, "name": item.name, "asset_type": item.asset_type,
+            "region": item.region, "market_open": item.market_open, "market_close": item.market_close,
+            "timezone": item.timezone, "currency": item.currency, "match_score": item.match_score,
+        }
+
+    @staticmethod
+    def _item_cache_dict(item: IntelligenceItem) -> dict[str, Any]:
+        return {
+            "source": item.source, "kind": item.kind, "title": item.title, "text": item.text,
+            "published_at": item.published_at.astimezone(timezone.utc).isoformat(), "url": item.url,
+            "sentiment": item.sentiment, "relevance": item.relevance, "engagement": item.engagement,
+            "subreddit": item.subreddit, "metadata": item.metadata,
+        }
+
+    @staticmethod
+    def _item_from_cache(data: dict[str, Any]) -> IntelligenceItem:
+        published_raw = str(data.get("published_at", ""))
+        try:
+            published = datetime.fromisoformat(published_raw.replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+        except ValueError:
+            published = datetime.now(timezone.utc)
+        return IntelligenceItem(
+            source=str(data.get("source", "")), kind=str(data.get("kind", "")),
+            title=str(data.get("title", "")), text=str(data.get("text", "")), published_at=published,
+            url=str(data.get("url", "")), sentiment=float(data.get("sentiment", 0.0) or 0.0),
+            relevance=float(data.get("relevance", 1.0) or 0.0), engagement=int(data.get("engagement", 0) or 0),
+            subreddit=str(data.get("subreddit", "")), metadata=dict(data.get("metadata", {}) or {}),
+        )
+
     async def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        return [item.as_dict() for item in await self.alpha.search(query, limit=limit)]
+        key = f"provider:v3:symbol-search:{self._normalise_query(query)}"
+        cached = await self._cache_get(key)
+        if cached and isinstance(cached.get("matches"), list):
+            return list(cached["matches"])[: max(1, min(limit, 20))]
+        matches = await self.alpha.search(query, limit=max(limit, 10))
+        payload = [self._candidate_cache_dict(item) for item in matches]
+        await self._cache_set(key, {"matches": payload}, self.symbol_cache_ttl)
+        return [item.as_dict() for item in matches[: max(1, min(limit, 20))]]
+
+    async def _resolve(self, query: str) -> StockCandidate:
+        raw = query.strip()
+        if self._looks_like_explicit_ticker(raw):
+            return StockCandidate(symbol=raw.upper(), name=raw.upper(), match_score=1.0)
+        key = f"provider:v3:resolved:{self._normalise_query(raw)}"
+        cached = await self._cache_get(key)
+        if cached and cached.get("candidate"):
+            return self._candidate_from_cache(dict(cached["candidate"]))
+        matches = await self.alpha.search(raw, limit=10)
+        if not matches:
+            raise LiveIntelligenceError(f"No listed instrument matched '{raw}'")
+        cleaned = raw.upper()
+        candidate = next((item for item in matches if item.symbol == cleaned), matches[0])
+        await self._cache_set(key, {"candidate": self._candidate_cache_dict(candidate)}, self.symbol_cache_ttl)
+        return candidate
+
+    async def _history(self, symbol: str) -> pd.DataFrame:
+        key = f"provider:v3:history:{symbol.upper()}:{getattr(self.alpha, 'outputsize', 'compact')}"
+        cached = await self._cache_get(key)
+        if cached and isinstance(cached.get("rows"), list) and cached["rows"]:
+            df = pd.DataFrame(cached["rows"])
+            df["date"] = pd.to_datetime(df["date"])
+            return df.set_index("date").sort_index()
+        df = await self.alpha.daily_history(symbol)
+        rows = [
+            {"date": idx.date().isoformat(), "open": float(row["open"]), "high": float(row["high"]),
+             "low": float(row["low"]), "close": float(row["close"]), "volume": float(row["volume"])}
+            for idx, row in df.iterrows()
+        ]
+        await self._cache_set(key, {"rows": rows}, self.history_cache_ttl)
+        return df
+
+    async def _news(self, symbol: str, lookback_days: int) -> list[IntelligenceItem]:
+        key = f"provider:v3:news:{symbol.upper()}:{lookback_days}:{self.news_fetch_limit}"
+        cached = await self._cache_get(key)
+        if cached and isinstance(cached.get("items"), list):
+            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+        items = await self.alpha.news(symbol, lookback_days, self.news_fetch_limit)
+        await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.news_cache_ttl)
+        return items
+
+    async def _reddit_posts(self, symbol: str, company_name: str) -> list[IntelligenceItem]:
+        if not self.reddit.configured:
+            return []
+        key = f"provider:v3:reddit-posts:{symbol.upper()}:{self.reddit_fetch_limit}"
+        cached = await self._cache_get(key)
+        if cached and isinstance(cached.get("items"), list):
+            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+        items = await self.reddit.search_posts(symbol, company_name, self.reddit_fetch_limit)
+        await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.reddit_cache_ttl)
+        return items
+
+    async def _reddit_comments(self, posts: list[IntelligenceItem]) -> list[IntelligenceItem]:
+        if not self.reddit.configured or not posts or self.reddit_comment_posts <= 0:
+            return []
+        ids = ",".join(str(item.metadata.get("id", "")) for item in sorted(posts, key=lambda x: x.engagement, reverse=True)[:self.reddit_comment_posts])
+        key = f"provider:v3:reddit-comments:{ids}:{self.reddit_comments_per_post}"
+        cached = await self._cache_get(key)
+        if cached and isinstance(cached.get("items"), list):
+            return [self._item_from_cache(dict(item)) for item in cached["items"]]
+        items = await self.reddit.top_comments(posts, max_posts=self.reddit_comment_posts, comments_per_post=self.reddit_comments_per_post)
+        await self._cache_set(key, {"items": [self._item_cache_dict(item) for item in items]}, self.reddit_cache_ttl)
+        return items
 
     @staticmethod
     def _weighted_source_summary(items: list[IntelligenceItem]) -> dict[str, Any]:
@@ -520,9 +723,12 @@ class LiveIntelligenceService:
         buckets: dict[tuple[pd.Timestamp, str], list[tuple[float, float, int]]] = {}
         for item in items:
             day = pd.Timestamp(item.published_at.astimezone(timezone.utc).date())
+            # Content outside the available market-history window is not
+            # collapsed onto the first/last training row. This prevents old
+            # news from contaminating the compact free-tier history window.
+            if day < dates[0] or day > dates[-1]:
+                continue
             pos = dates.searchsorted(day, side="left")
-            # Content after the last historical market date is used only in the
-            # current feature vector, never backfilled into training history.
             if pos >= len(dates):
                 continue
             market_day = dates[pos]
@@ -683,13 +889,17 @@ class LiveIntelligenceService:
             raise LiveIntelligenceError("Live intelligence is not configured; set ALPHA_VANTAGE_KEY")
 
         started = time.perf_counter()
-        company = await self.alpha.resolve(query)
+        company = await self._resolve(query)
         symbol = company.symbol
 
-        # Calls are kept separate so provider-specific failures degrade clearly.
-        history = await self.alpha.daily_history(symbol)
-        news_task = asyncio.create_task(self.alpha.news(symbol, self.lookback_days, self.news_fetch_limit))
-        reddit_task = asyncio.create_task(self.reddit.search_posts(symbol, company.name, self.reddit_fetch_limit))
+        # Provider-level caching is deliberately below the final-response cache:
+        # switching horizon or Reddit-comment mode should not spend another
+        # Alpha Vantage history/news request.
+        history = await self._history(symbol)
+        history_calendar_days = max(30, (datetime.now(timezone.utc).date() - history.index.min().date()).days + 7)
+        effective_news_lookback = min(self.lookback_days, history_calendar_days)
+        news_task = asyncio.create_task(self._news(symbol, effective_news_lookback))
+        reddit_task = asyncio.create_task(self._reddit_posts(symbol, company.name))
         news_result, reddit_result = await asyncio.gather(news_task, reddit_task, return_exceptions=True)
 
         source_errors: dict[str, str] = {}
@@ -707,11 +917,7 @@ class LiveIntelligenceService:
         reddit_comments: list[IntelligenceItem] = []
         if include_reddit_comments and reddit_posts and self.reddit.configured:
             try:
-                reddit_comments = await self.reddit.top_comments(
-                    reddit_posts,
-                    max_posts=self.reddit_comment_posts,
-                    comments_per_post=self.reddit_comments_per_post,
-                )
+                reddit_comments = await self._reddit_comments(reddit_posts)
             except Exception as exc:  # graceful source degradation is intentional
                 source_errors["reddit_comments"] = str(exc)
 

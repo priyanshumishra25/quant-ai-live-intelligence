@@ -19,6 +19,12 @@ class DataSourceSettings(BaseSettings):
         default=ROOT / "data" / "sample", validation_alias="SAMPLE_DATA_DIR"
     )
     alpha_vantage_key: str = Field(default="", validation_alias="ALPHA_VANTAGE_KEY")
+    alpha_vantage_outputsize: Literal["compact", "full"] = Field(
+        default="compact", validation_alias="ALPHA_VANTAGE_OUTPUTSIZE"
+    )
+    alpha_vantage_min_interval_seconds: float = Field(
+        default=1.10, validation_alias="ALPHA_VANTAGE_MIN_INTERVAL_SECONDS"
+    )
     polygon_key: str = Field(default="", validation_alias="POLYGON_KEY")
     newsapi_key: str = Field(default="", validation_alias="NEWSAPI_KEY")
     reddit_client_id: str = Field(default="", validation_alias="REDDIT_CLIENT_ID")
@@ -89,7 +95,11 @@ class InfraSettings(BaseSettings):
     )
     redis_url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
     redis_ttl_predictions: int = Field(default=300, validation_alias="REDIS_TTL_PREDICTIONS")
-    redis_ttl_intelligence: int = Field(default=300, validation_alias="REDIS_TTL_INTELLIGENCE")
+    redis_ttl_intelligence: int = Field(default=1800, validation_alias="REDIS_TTL_INTELLIGENCE")
+    redis_ttl_symbol_resolution: int = Field(default=604800, validation_alias="REDIS_TTL_SYMBOL_RESOLUTION")
+    redis_ttl_market_history: int = Field(default=21600, validation_alias="REDIS_TTL_MARKET_HISTORY")
+    redis_ttl_news: int = Field(default=1800, validation_alias="REDIS_TTL_NEWS")
+    redis_ttl_reddit: int = Field(default=600, validation_alias="REDIS_TTL_REDDIT")
     postgres_url: str = Field(
         default="postgresql+asyncpg://quantai:quantai@localhost:5432/quantai",
         validation_alias="POSTGRES_URL",

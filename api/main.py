@@ -31,7 +31,7 @@ from services.market_data import MarketDataError, MarketDataService
 from services.prediction_service import ArtifactRegistry, HORIZON_DAYS, PredictionService, WalkForwardLinearSignal
 from services.experiments import MODEL_CATALOG, build_signal
 from services.live_intelligence import (
-    AlphaVantageClient, LiveIntelligenceError, LiveIntelligenceService, RedditClient,
+    AlphaVantageClient, LiveIntelligenceError, LiveIntelligenceService, ProviderLimitError, RedditClient,
 )
 
 try:
@@ -79,7 +79,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     registry = ArtifactRegistry(settings.model.artifact_dir)
     predictor = PredictionService(market, registry)
     intelligence = LiveIntelligenceService(
-        AlphaVantageClient(settings.data.alpha_vantage_key),
+        AlphaVantageClient(
+            settings.data.alpha_vantage_key,
+            outputsize=settings.data.alpha_vantage_outputsize,
+            min_interval_seconds=settings.data.alpha_vantage_min_interval_seconds,
+        ),
         RedditClient(
             settings.data.reddit_client_id,
             settings.data.reddit_secret,
@@ -90,6 +94,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         reddit_fetch_limit=settings.data.intelligence_reddit_limit,
         reddit_comment_posts=settings.data.intelligence_reddit_comment_posts,
         reddit_comments_per_post=settings.data.intelligence_reddit_comments_per_post,
+        cache=cache,
+        symbol_cache_ttl=settings.infra.redis_ttl_symbol_resolution,
+        history_cache_ttl=settings.infra.redis_ttl_market_history,
+        news_cache_ttl=settings.infra.redis_ttl_news,
+        reddit_cache_ttl=settings.infra.redis_ttl_reddit,
     )
     app.state.cache = cache
     app.state.cache_backend = cache_backend
@@ -114,7 +123,7 @@ app = FastAPI(
         "Software + AI engineering portfolio API with a reproducible offline path and an optional live "
         "intelligence pipeline that fuses historical trends, documented news feeds and Reddit evidence."
     ),
-    version="3.0.0",
+    version="3.0.1",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -221,7 +230,7 @@ def _services(request: Request) -> tuple[MarketDataService, PredictionService]:
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"name": "Quant AI Live Intelligence Platform", "version": "3.0.0", "docs": "/api/docs"}
+    return {"name": "Quant AI Live Intelligence Platform", "version": "3.0.1", "docs": "/api/docs"}
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -243,7 +252,7 @@ async def health(request: Request):
     return {
         "status": "ok" if predictor.loaded else "degraded",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "3.0.0",
+        "version": "3.0.1",
         "models_loaded": predictor.loaded,
         "model_count": len(predictor.registry.available()),
         "cache_ok": cache_ok,
@@ -479,6 +488,8 @@ async def intelligence_search(
         raise HTTPException(status_code=503, detail="Live intelligence requires ALPHA_VANTAGE_KEY")
     try:
         matches = await service.search(q, limit=max(1, min(limit, 20)))
+    except ProviderLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except LiveIntelligenceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"query": q, "matches": matches, "count": len(matches)}
@@ -500,6 +511,8 @@ async def intelligence_analyze(
         return cached
     try:
         payload = await service.analyze(body.query, body.horizon, body.include_reddit_comments)
+    except ProviderLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except LiveIntelligenceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     payload["cache_hit"] = False
@@ -528,7 +541,7 @@ async def system_overview(request: Request, user: dict = Depends(current_user)):
     cache_hits = int(runtime["prediction_cache_hits"])
     return {
         "service": "quant-ai-api",
-        "version": "3.0.0",
+        "version": "3.0.1",
         "uptime_seconds": round(uptime, 2),
         "requests_total": requests_total,
         "average_http_latency_ms": round((runtime["http_seconds_sum"] / requests_total * 1000.0), 3) if requests_total else 0.0,
@@ -539,6 +552,14 @@ async def system_overview(request: Request, user: dict = Depends(current_user)):
         "data_provider": predictor.market.provider,
         "live_intelligence_configured": bool(request.app.state.intelligence.configured),
         "reddit_configured": bool(request.app.state.intelligence.reddit.configured),
+        "alpha_vantage_outputsize": settings.data.alpha_vantage_outputsize,
+        "provider_cache_ttls_seconds": {
+            "symbol_resolution": settings.infra.redis_ttl_symbol_resolution,
+            "market_history": settings.infra.redis_ttl_market_history,
+            "news": settings.infra.redis_ttl_news,
+            "reddit": settings.infra.redis_ttl_reddit,
+            "final_intelligence": settings.infra.redis_ttl_intelligence,
+        },
         "architecture": ["TypeScript UI", "FastAPI", "Live provider adapters", request.app.state.cache_backend.title() + " cache", "On-demand fusion model"],
         "capabilities": [
             "JWT authentication", "typed REST contracts", "WebSocket streaming", "persisted inference",
