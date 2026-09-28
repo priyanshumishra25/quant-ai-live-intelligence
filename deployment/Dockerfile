@@ -13,10 +13,3 @@ CMD ["uvicorn","api.main:app","--host","0.0.0.0","--port","8000","--workers","1"
 
 FROM runtime AS api
 
-# Optional research image. Heavy experimental dependencies are separated so
-# the default runnable image remains small and deterministic.
-FROM runtime AS research
-USER root
-COPY requirements-research.txt /tmp/requirements-research.txt
-RUN pip install -r /tmp/requirements-research.txt
-USER quantai

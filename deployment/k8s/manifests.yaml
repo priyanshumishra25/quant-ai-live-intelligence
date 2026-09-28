@@ -10,9 +10,9 @@ metadata:
   namespace: quant-ai
 type: Opaque
 stringData:
-  AUTH_USERNAME: demo
-  AUTH_PASSWORD: quantai-demo
-  JWT_SECRET: change-this-before-public-deployment-at-least-32-bytes
+  AUTH_USERNAME: REPLACE_ME
+  AUTH_PASSWORD: REPLACE_ME
+  JWT_SECRET: REPLACE_ME_WITH_RANDOM_SECRET_AT_LEAST_32_BYTES
   ALPHA_VANTAGE_KEY: ""
   REDDIT_CLIENT_ID: ""
   REDDIT_SECRET: ""
@@ -94,7 +94,7 @@ spec:
       containers:
         - name: api
           # Build deployment/Dockerfile target `api` and push it under this name.
-          image: quant-ai-api:3.0.1
+          image: quant-ai-api:3.0.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -140,7 +140,7 @@ spec:
       containers:
         - name: frontend
           # Build frontend/Dockerfile and push it under this name.
-          image: quant-ai-frontend:3.0.1
+          image: quant-ai-frontend:3.0.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

@@ -45,7 +45,7 @@ Feature construction
   └─ Reddit sentiment / volume / engagement (inference-only overlay)
   │
   ▼
-Chronological holdout validation
+Purged chronological holdout validation
   │
   ▼
 Final on-demand ridge refit
@@ -54,8 +54,8 @@ Final on-demand ridge refit
 Forecast
   ├─ return / target price
   ├─ interval
-  ├─ signal distribution
-  ├─ evidence quality
+  ├─ heuristic signal-score decomposition
+  ├─ source coverage + validation reliability
   ├─ source-family contributions
   └─ top feature drivers
   │

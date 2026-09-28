@@ -61,7 +61,7 @@ It does not perform unsupported global comment search and does not crawl Reddit 
 
 ## 5. Date alignment
 
-Historical **news** items are mapped to the first market date on or after publication. Items later than the last historical market date are **not inserted into the historical training matrix**.
+Historical **news** timestamps are converted to `America/New_York`. Items published before 16:00 ET are mapped to that session when available; items at/after 16:00 ET roll to the next available market session. Weekend/holiday items also roll forward. Malformed timestamps are dropped. Items later than the last historical market date are **not inserted into the historical training matrix**.
 
 Reddit items are never inserted into the historical training matrix. For the current prediction, the latest seven-day news and Reddit evidence states are aggregated separately, allowing weekend/post-close information to influence the current forecast without creating historical look-ahead leakage or fitting model weights on Reddit content.
 
@@ -84,7 +84,7 @@ news_sentiment
 news_volume
 ```
 
-A regularised linear return model is fit for the requested future horizon.
+A regularised linear return model is fit for the requested future horizon. Ridge alpha is selected from a declared grid using generalized cross-validation on the training block only.
 
 The current Reddit state is intentionally **not a fitted feature set**. After the ridge forecast is produced, current Reddit sentiment is converted into a fixed, bounded overlay scaled by evidence strength. Reddit volume and engagement affect that evidence strength, but no coefficient is learned from Reddit content.
 
@@ -103,9 +103,9 @@ This is a diagnostic, not a claim of profitability.
 The response includes:
 
 - expected return and price;
-- 95% residual interval;
-- BUY/HOLD/SELL research-score probabilities;
-- evidence-quality score;
+- 95% interval using purged-holdout residual scale;
+- bullish/neutral/bearish heuristic signal scores (not probabilities);
+- source-coverage diagnostic;
 - technical/news/Reddit contribution mix;
 - top feature drivers;
 - validation metrics;
@@ -120,5 +120,6 @@ The response includes:
 - Social sentiment can be manipulated or unrepresentative.
 - Publication timing and exchange timezone semantics can matter around market close.
 - The current lightweight social scorer is not a substitute for a validated financial-language model.
-- Directional accuracy on one rolling holdout is not sufficient evidence of a tradable edge.
+- Directional accuracy on one holdout is not sufficient evidence of a tradable edge; the API reports holdout rows, approximate non-overlapping observations and a reliability label.
+- Compact free-tier history can leave very low effective validation sample sizes at 5d/20d horizons.
 - The project is not an execution system.

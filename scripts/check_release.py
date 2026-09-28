@@ -33,6 +33,20 @@ def main() -> None:
     for rel in required:
         if not (ROOT / rel).exists():
             fail(f"missing {rel}")
+
+    forbidden_prototypes = [
+        "models", "features", "risk", "database", "data/ingestion",
+        "data/scraping", "data/streaming", "services/retrainer.py",
+        "requirements-research.txt",
+    ]
+    for rel in forbidden_prototypes:
+        if (ROOT / rel).exists():
+            fail(f"disconnected prototype path must not ship on main: {rel}")
+
+    public_copy = [ROOT / "README.md", ROOT / "docs" / "ENGINEERING.md", ROOT / "docs" / "MODEL_CARD.md"]
+    for path in public_copy:
+        if "interview" in path.read_text().lower():
+            fail(f"interview-specific copy remains in {path.relative_to(ROOT)}")
     registry = json.loads((ROOT / "artifacts/models/registry.json").read_text())
     if registry.get("data_source") != "deterministic synthetic research fixture":
         fail("bundled registry must identify the synthetic fixture")

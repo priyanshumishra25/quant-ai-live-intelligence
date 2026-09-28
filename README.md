@@ -1,13 +1,13 @@
 # Quant AI — Live Stock Intelligence
 
-**A software + AI engineering portfolio project that turns a company name or ticker into an auditable market forecast using historical price behaviour, current/historical market news, and Reddit discussion.**
+**An end-to-end software + AI engineering project that turns a company name or ticker into an auditable market forecast using historical price behaviour, current/historical market news, and Reddit discussion.**
 
-The project is designed to demonstrate both sides of production AI work:
+The system combines software engineering and applied ML concerns:
 
 - **Software engineering:** typed client contracts, provider adapters, auth, caching, graceful degradation, observability, Docker, CI, source attribution and tests.
 - **AI engineering:** feature pipelines, alternative-data aggregation, chronological validation, on-demand model fitting, uncertainty, explainability, provenance and reproducible offline evaluation.
 
-> **Experimental research software, not investment advice.** A model signal is not a recommendation, and model confidence is not the probability of profit.
+> **Experimental research software, not investment advice.** A model signal is not a recommendation, and signal strength is not a probability of profit.
 
 ## What happens when you type `Apple`
 
@@ -21,7 +21,7 @@ The project is designed to demonstrate both sides of production AI work:
    ├─► market news ───────────────────► dated news sentiment + volume
    │                                         │
    │                                         ▼
-   │                              chronological holdout validation
+   │                              purged chronological holdout validation
    │                                         │
    │                                         ▼
    │                               on-demand ridge model
@@ -32,7 +32,7 @@ The project is designed to demonstrate both sides of production AI work:
                                   fixed bounded social overlay
                                              │
                                              ▼
-                     forecast + interval + probabilities + contributions
+                     forecast + holdout-based interval + signal scores + contributions
                                              │
                                              ▼
                               source-attributed evidence stream
@@ -53,7 +53,7 @@ Search by company name or ticker. The dashboard displays:
 - Reddit sentiment and engagement;
 - current evidence stream with source links;
 - fused model forecast and 95% interval;
-- BUY/HOLD/SELL research score distribution;
+- bullish/neutral/bearish signal-score decomposition (not probabilities);
 - technical vs news vs Reddit contribution mix;
 - chronological validation metrics;
 - provider degradation/errors instead of silently fabricating data.
@@ -198,7 +198,7 @@ news sentiment
 news volume
 ```
 
-News uses Alpha Vantage's ticker-level relevance/sentiment where available. Historical news items are mapped to market dates and exponentially decayed so stale sentiment loses influence. Content after the last historical market date is **not backfilled into training history**; it is used only for the current forecast state.
+News uses Alpha Vantage's ticker-level relevance/sentiment where available. Historical news timestamps are converted to `America/New_York` and mapped to the first market close at which they are knowable. Items at/after 16:00 ET and weekend/holiday items roll to the next available market session. Malformed timestamps are dropped. Content after the last historical market date is **not backfilled into training history**; it is used only for the current forecast state.
 
 ### Reddit inference-only signals
 
@@ -208,21 +208,22 @@ Reddit volume
 Reddit engagement
 ```
 
-Reddit text is scored ephemerally with a transparent finance-oriented sentiment fallback in the lightweight serving path. **Reddit content never enters fitted model weights.** Instead, the latest Reddit state is converted into a small fixed, bounded inference-time overlay after the price+news ridge forecast is produced. The repository also retains a FinBERT research module outside the default dependency path.
+Reddit text is scored ephemerally with a transparent finance-oriented sentiment fallback in the lightweight serving path. **Reddit content never enters fitted model weights.** Instead, the latest Reddit state is converted into a small fixed, bounded inference-time overlay after the price+news ridge forecast is produced. The lightweight serving path keeps sentiment processing deterministic and inspectable; no hidden research-only NLP stack is required to run the product.
 
 The model then:
 
 1. constructs a future-return target for the selected horizon;
 2. standardises the features;
-3. trains a regularised linear model on the chronological training segment;
-4. evaluates on the most recent chronological holdout;
-5. reports MAE, directional accuracy and prediction/target correlation;
-6. refits on all eligible historical observations;
-7. scores the current technical + news state;
-8. applies a fixed, bounded Reddit inference overlay when Reddit evidence is available;
-9. returns uncertainty bounds and feature/source contributions.
+3. reserves a horizon-length purge gap before the chronological holdout;
+4. selects ridge alpha from the training block only using generalized cross-validation;
+5. evaluates on the untouched chronological holdout and reports sample-size/reliability diagnostics;
+6. estimates forecast-error scale from holdout residuals;
+7. refits on all eligible historical observations with the already-selected alpha;
+8. scores the current technical + news state;
+9. applies a fixed, bounded Reddit inference overlay when Reddit evidence is available;
+10. returns holdout-based uncertainty bounds, heuristic signal scores and feature/source contributions.
 
-The model intentionally remains inspectable. The point of the project is not to hide weak evidence behind a huge neural network; it is to demonstrate a coherent end-to-end ML product and make every assumption discussable in an interview.
+The model intentionally remains inspectable. Weak evidence is surfaced through holdout size, approximate non-overlapping observation count and validation reliability rather than hidden behind a more complex model.
 
 ### Reddit data boundary
 
@@ -259,8 +260,8 @@ company
 market trend metrics
 news / Reddit sentiment summaries
 source errors / degradation state
-prediction + uncertainty + probabilities
-evidence quality
+prediction + holdout-based uncertainty + signal scores
+source coverage + validation reliability
 source-family contribution mix
 top model drivers
 chronological validation metrics
@@ -398,9 +399,6 @@ artifacts/models/          persisted deterministic bootstrap models
 data/sample/               deterministic OHLCV fixture
 frontend/src/              strict TypeScript dashboard
 frontend/dist/             committed browser-ready modules
-models/                    optional heavier research models
-features/                  technical + NLP research modules
-risk/                      portfolio/risk utilities
 deployment/                Docker, Compose, K8s and Prometheus config
 scripts/analyze_stock.py   live CLI entry point
 scripts/                   bootstrap, experiments and release checks

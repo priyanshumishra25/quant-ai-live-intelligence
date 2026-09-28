@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.2 — Temporal validation and repository cleanup
+
+- add a horizon-length purge gap before the chronological holdout;
+- estimate live forecast intervals from holdout residuals rather than final-fit in-sample residuals;
+- select ridge alpha from the training block only via generalized cross-validation;
+- replace BUY/HOLD/SELL pseudo-probabilities with explicitly heuristic bullish/neutral/bearish scores;
+- report holdout size, approximate non-overlapping observations and validation reliability;
+- align historical news to US market close semantics and drop malformed timestamps;
+- document the fixed Reddit overlay as a design guardrail rather than an optimized coefficient;
+- reject demo/default authentication secrets in staging/production;
+- remove disconnected research prototypes (RL, GNN, Kafka, scraper, options/tree stacks, retrainer, legacy DB/research scaffolding);
+- remove interview-specific repository copy and refresh publication metadata.
+
 ## 3.0.1 — Free-tier provider hardening
 
 - Removed automatic live analysis on page load; Alpha Vantage is contacted only after an explicit Analyze action.

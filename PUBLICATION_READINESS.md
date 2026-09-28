@@ -1,18 +1,23 @@
 # Portfolio / Publication Readiness
 
-## What v3.0.1 is ready for
+## What v3.0.2 is ready for
 
-The repository is suitable as a public **software + AI engineering portfolio project** once the author selects a licence and replaces placeholder author metadata.
+The repository is suitable as a public **software + AI engineering project** after the owner chooses a software licence and confirms the public Git history contains no secrets.
 
-It demonstrates:
+Repository-controlled readiness work is implemented:
 
 - live documented-provider integration;
 - arbitrary stock/company resolution;
-- alternative-data feature engineering;
-- chronological ML validation;
+- market-session-aware news alignment;
+- purged chronological validation;
+- training-only ridge-alpha selection;
+- holdout-residual uncertainty;
+- heuristic signal scores labelled as scores rather than probabilities;
+- explicit small-sample validation reliability;
 - source-attributed model output;
 - provider degradation handling;
 - deterministic CI without live secrets;
+- production startup rejection of known demo/default authentication secrets;
 - API, frontend, cache, auth and observability concerns.
 
 ## What it must not claim
@@ -25,8 +30,8 @@ A scientific/performance claim requires a separately frozen empirical protocol i
 - corporate actions / ticker changes / delistings;
 - survivorship-bias policy;
 - immutable historical news/social snapshots;
-- strict market-session/timezone policy;
-- untouched final holdout;
+- exchange-specific market calendars and timestamp policy;
+- untouched final test set;
 - hyperparameter-selection disclosure;
 - baseline + ablation studies;
 - repeated experiments where applicable;
@@ -34,28 +39,25 @@ A scientific/performance claim requires a separately frozen empirical protocol i
 - statistical uncertainty / multiple-testing controls;
 - social-data usage rights appropriate to the study.
 
-## Public repository checklist
+## Repository-controlled checks
 
-- [ ] Choose and add a software licence.
-- [ ] Replace placeholder author metadata in `CITATION.cff`.
-- [ ] Confirm `.env` and provider secrets are absent from Git history.
+- [x] `CITATION.cff` contains author metadata.
+- [x] `.env` is excluded from the packaged release and release checks reject tracked secrets.
+- [x] Tests isolate live provider credentials.
+- [x] Staging/production startup rejects the known demo password and placeholder JWT secrets.
+- [x] Kubernetes secret values are placeholders rather than deployable demo credentials.
+- [x] Live signal outputs are explicitly scores, not calibrated probabilities.
+- [x] Validation uses a horizon-length purge gap.
+- [x] Forecast intervals use holdout residuals.
+- [x] News after the US close rolls to the next market session.
+- [x] Invalid news timestamps are dropped rather than fabricated.
+
+## Owner actions before public release
+
+- [ ] Choose and add a software licence. This is a repository-owner/legal choice and is intentionally not selected automatically.
+- [ ] Inspect Git history for any previously committed provider secrets and rotate any exposed credentials.
 - [ ] Run `make verify` from a clean checkout.
 - [ ] Build both Docker images in CI.
-- [ ] Add screenshots/GIF of Live Intelligence.
-- [ ] If hosting a demo, inject provider keys only server-side.
-- [ ] Ensure provider terms permit the intended hosted use.
-- [ ] Change demo auth credentials and JWT secret.
-- [ ] Add a short architecture diagram to the GitHub README preview.
-
-## Interview demo sequence
-
-A strong five-minute demo is:
-
-1. Type a company name in **Live Intelligence**.
-2. Show symbol resolution and historical trend.
-3. Show news + Reddit evidence and source attribution.
-4. Show the model's technical/news/Reddit contribution mix.
-5. Show chronological validation rather than random train/test splitting.
-6. Open **System** to discuss provider boundaries, cache, API and observability.
-7. Open **Experiment Lab** to show baseline discipline.
-8. Explain why the deterministic offline path exists for CI.
+- [ ] Add screenshots/GIF if desired.
+- [ ] If hosting a demo, inject provider keys and authentication secrets only server-side.
+- [ ] Confirm provider terms permit the intended hosted use.

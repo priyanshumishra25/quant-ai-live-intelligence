@@ -25,8 +25,6 @@ class DataSourceSettings(BaseSettings):
     alpha_vantage_min_interval_seconds: float = Field(
         default=1.10, validation_alias="ALPHA_VANTAGE_MIN_INTERVAL_SECONDS"
     )
-    polygon_key: str = Field(default="", validation_alias="POLYGON_KEY")
-    newsapi_key: str = Field(default="", validation_alias="NEWSAPI_KEY")
     reddit_client_id: str = Field(default="", validation_alias="REDDIT_CLIENT_ID")
     reddit_secret: str = Field(default="", validation_alias="REDDIT_SECRET")
     reddit_user_agent: str = Field(default="QuantAIResearch/3.0", validation_alias="REDDIT_USER_AGENT")
@@ -48,44 +46,6 @@ class ModelSettings(BaseSettings):
     )
     seed: int = Field(default=42, validation_alias="MODEL_SEED")
 
-    # Retained settings for the optional experimental research modules.
-    lstm_hidden_size: int = 256
-    lstm_num_layers: int = 3
-    lstm_dropout: float = 0.3
-    lstm_seq_len: int = 60
-    lstm_pred_len: int = 5
-    tft_hidden_size: int = 128
-    tft_attention_heads: int = 4
-    tft_lstm_layers: int = 2
-    tft_dropout: float = 0.1
-    tft_max_encoder_length: int = 60
-    tft_max_prediction_length: int = 5
-    xgb_n_estimators: int = 1000
-    xgb_max_depth: int = 6
-    xgb_learning_rate: float = 0.01
-    xgb_subsample: float = 0.8
-    xgb_colsample_bytree: float = 0.8
-    xgb_early_stopping_rounds: int = 50
-    lgb_n_estimators: int = 1000
-    lgb_num_leaves: int = 63
-    lgb_learning_rate: float = 0.01
-    ensemble_method: Literal["stacking", "blending", "dynamic_weighting"] = "dynamic_weighting"
-    ensemble_lookback_days: int = 30
-    rl_algorithm: Literal["PPO", "SAC", "TD3", "A2C"] = "PPO"
-    rl_total_timesteps: int = 1_000_000
-    rl_n_envs: int = 8
-    rl_learning_rate: float = 3e-4
-    batch_size: int = 64
-    val_batch_size: int = 128
-    num_epochs: int = 100
-    learning_rate: float = 1e-3
-    weight_decay: float = 1e-4
-    gradient_clip: float = 1.0
-    mixed_precision: bool = True
-    wf_initial_train_size: int = 504
-    wf_step_size: int = 63
-    wf_n_splits: int = 8
-
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -100,16 +60,6 @@ class InfraSettings(BaseSettings):
     redis_ttl_market_history: int = Field(default=21600, validation_alias="REDIS_TTL_MARKET_HISTORY")
     redis_ttl_news: int = Field(default=1800, validation_alias="REDIS_TTL_NEWS")
     redis_ttl_reddit: int = Field(default=600, validation_alias="REDIS_TTL_REDDIT")
-    postgres_url: str = Field(
-        default="postgresql+asyncpg://quantai:quantai@localhost:5432/quantai",
-        validation_alias="POSTGRES_URL",
-    )
-    mongo_url: str = Field(default="mongodb://localhost:27017", validation_alias="MONGO_URL")
-    kafka_brokers: str = Field(default="localhost:9092", validation_alias="KAFKA_BROKERS")
-    mlflow_tracking_uri: str = Field(default="http://localhost:5000", validation_alias="MLFLOW_TRACKING_URI")
-    mlflow_experiment: str = "quant-ai-models"
-    s3_bucket: str = Field(default="quant-ai-models", validation_alias="S3_BUCKET")
-    s3_region: str = Field(default="us-east-1", validation_alias="S3_REGION")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

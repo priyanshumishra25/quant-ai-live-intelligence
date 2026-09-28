@@ -71,9 +71,23 @@ class FixedWindowRateLimiter:
 
 rate_limiter = FixedWindowRateLimiter(api_cfg.rate_limit_per_minute)
 
+def _validate_deployment_security() -> None:
+    """Reject known development credentials in staging/production."""
+    if settings.env not in {"staging", "production"}:
+        return
+    insecure_secret_markers = ("development", "local-development", "change-this", "replace_me", "replace-me")
+    secret = api_cfg.jwt_secret.strip().lower()
+    if len(api_cfg.jwt_secret.strip()) < 32 or any(marker in secret for marker in insecure_secret_markers):
+        raise RuntimeError("JWT_SECRET must be a non-placeholder secret of at least 32 characters in staging/production")
+    if api_cfg.auth_required:
+        password = api_cfg.auth_password.strip().lower()
+        if api_cfg.auth_username.strip().lower() == "demo" or password in {"", "quantai-demo", "demo", "replace_me", "replace-me"}:
+            raise RuntimeError("Demo authentication credentials are forbidden in staging/production")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    _validate_deployment_security()
     cache, cache_backend = await create_cache(settings.infra.cache_backend, settings.infra.redis_url)
     market = MarketDataService(settings.data.market_data_provider, settings.data.sample_data_dir)
     registry = ArtifactRegistry(settings.model.artifact_dir)
@@ -123,7 +137,7 @@ app = FastAPI(
         "Software + AI engineering portfolio API with a reproducible offline path and an optional live "
         "intelligence pipeline that fuses historical trends, documented news feeds and Reddit evidence."
     ),
-    version="3.0.1",
+    version="3.0.2",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -230,7 +244,7 @@ def _services(request: Request) -> tuple[MarketDataService, PredictionService]:
 
 @app.get("/", include_in_schema=False)
 async def root():
-    return {"name": "Quant AI Live Intelligence Platform", "version": "3.0.1", "docs": "/api/docs"}
+    return {"name": "Quant AI Live Intelligence Platform", "version": "3.0.2", "docs": "/api/docs"}
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -252,7 +266,7 @@ async def health(request: Request):
     return {
         "status": "ok" if predictor.loaded else "degraded",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "3.0.1",
+        "version": "3.0.2",
         "models_loaded": predictor.loaded,
         "model_count": len(predictor.registry.available()),
         "cache_ok": cache_ok,
@@ -541,7 +555,7 @@ async def system_overview(request: Request, user: dict = Depends(current_user)):
     cache_hits = int(runtime["prediction_cache_hits"])
     return {
         "service": "quant-ai-api",
-        "version": "3.0.1",
+        "version": "3.0.2",
         "uptime_seconds": round(uptime, 2),
         "requests_total": requests_total,
         "average_http_latency_ms": round((runtime["http_seconds_sum"] / requests_total * 1000.0), 3) if requests_total else 0.0,

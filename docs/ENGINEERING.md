@@ -7,7 +7,7 @@ The product keeps the evidence and model path inspectable:
 - provider data are normalized into explicit internal records;
 - sentiment becomes dated numerical features;
 - price and historical news features are joined chronologically;
-- validation uses a later holdout rather than a random split;
+- validation uses a later holdout, separated from training by a horizon-length purge gap, rather than a random split;
 - the final prediction exposes feature and source-family contributions;
 - raw sources remain linked so a reviewer can audit the evidence.
 
@@ -15,7 +15,7 @@ An LLM can later be added as an explanation layer, but it should not be the unob
 
 ## Why ridge regression for the live fusion model
 
-The portfolio goal is to demonstrate a coherent AI product, not maximize architectural novelty. Ridge is useful here because it is:
+The design goal is a coherent, inspectable AI product rather than architectural novelty. Ridge is useful here because it is:
 
 - fast enough to refit per query;
 - deterministic;
@@ -31,9 +31,22 @@ Reddit's developer/data terms impose explicit restrictions on training algorithm
 
 Current Reddit evidence can still influence the research forecast through a deliberately small, fixed and bounded inference-time overlay. That makes the effect inspectable while avoiding a hidden Reddit-trained model. The same internal interface supports a future licensed social-data feed if commercial rights are obtained.
 
+
+## Why validation is purged
+
+A future-return target spans the selected forecast horizon. Without a gap, the final training targets can overlap the dates used by the chronological holdout. The live model therefore removes a purge block equal to the horizon before validation begins. Holdout size and an approximate non-overlapping observation count are returned so compact-history results are not presented with false precision.
+
+## Why ridge alpha is selected rather than fixed
+
+The serving model evaluates a small declared alpha grid with generalized cross-validation on the outer training block only. The holdout remains untouched by this selection. This removes the unexplained fixed `0.35` penalty while preserving a lightweight deterministic fit when free-tier history is small.
+
+## Why the Reddit overlay remains fixed
+
+Reddit content is intentionally excluded from fitted model weights. The overlay cap of `0.25 × holdout residual sigma` is a design guardrail, not an empirically optimal coefficient: it limits social evidence to a secondary, inspectable adjustment and prevents it from dominating the fitted price+news signal.
+
 ## Why no Reddit HTML scraping
 
-Scraping would create brittle selectors, unclear access rights, anti-bot workarounds and a poor interview story. The live path requires authorised API access and reports when Reddit is unavailable.
+Scraping would create brittle selectors, unclear access rights and anti-bot workarounds. The live path therefore requires authorised API access and reports when Reddit is unavailable.
 
 ## Why Alpha Vantage rather than an undocumented finance endpoint
 
