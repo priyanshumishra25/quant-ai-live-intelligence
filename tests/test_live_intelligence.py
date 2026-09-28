@@ -218,3 +218,94 @@ async def test_reddit_adapter_uses_oauth_and_parses_posts_and_comments():
     assert posts[0].sentiment > 0
     assert len(comments) == 1
     assert comments[0].url.startswith("https://www.reddit.com/")
+
+@pytest.mark.asyncio
+async def test_provider_level_cache_prevents_repeat_alpha_calls_across_horizons():
+    from services.cache import MemoryCache
+
+    class CountingAlpha(FakeAlpha):
+        outputsize = "compact"
+
+        def __init__(self):
+            self.search_calls = 0
+            self.history_calls = 0
+            self.news_calls = 0
+
+        async def search(self, query: str, limit: int = 8):
+            self.search_calls += 1
+            return await super().search(query, limit)
+
+        async def daily_history(self, symbol: str, max_rows: int = 1500):
+            self.history_calls += 1
+            return await super().daily_history(symbol, max_rows)
+
+        async def news(self, symbol: str, lookback_days: int = 365, limit: int = 500):
+            self.news_calls += 1
+            return await super().news(symbol, lookback_days, limit)
+
+    alpha = CountingAlpha()
+    service = LiveIntelligenceService(
+        alpha,
+        FakeReddit(),
+        cache=MemoryCache(),
+        news_fetch_limit=100,
+        reddit_fetch_limit=20,
+    )
+    await service.analyze("Acme Robotics", "5d", include_reddit_comments=False)
+    await service.analyze("Acme Robotics", "20d", include_reddit_comments=False)
+
+    assert alpha.search_calls == 1
+    assert alpha.history_calls == 1
+    assert alpha.news_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_explicit_uppercase_ticker_skips_symbol_search():
+    from services.cache import MemoryCache
+
+    class CountingAlpha(FakeAlpha):
+        outputsize = "compact"
+
+        def __init__(self):
+            self.search_calls = 0
+
+        async def search(self, query: str, limit: int = 8):
+            self.search_calls += 1
+            return await super().search(query, limit)
+
+    alpha = CountingAlpha()
+    service = LiveIntelligenceService(alpha, FakeReddit(), cache=MemoryCache())
+    payload = await service.analyze("ACME", "5d", include_reddit_comments=False)
+    assert payload["ticker"] == "ACME"
+    assert alpha.search_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_alpha_free_tier_defaults_to_compact_and_translates_quota_message():
+    import httpx
+    from services.live_intelligence import AlphaVantageClient, ProviderLimitError
+
+    seen_outputsize: list[str] = []
+
+    def daily_handler(request: httpx.Request):
+        params = dict(request.url.params)
+        seen_outputsize.append(params.get("outputsize", ""))
+        return httpx.Response(200, json={"Time Series (Daily)": {
+            "2026-09-25": {"1. open":"100","2. high":"101","3. low":"99","4. close":"100.5","5. volume":"1000"}
+        }})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(daily_handler)) as client:
+        alpha = AlphaVantageClient("test", client=client, min_interval_seconds=0)
+        await alpha.daily_history("AAPL")
+    assert seen_outputsize == ["compact"]
+
+    message = (
+        "Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly "
+        "(1 request per second). The free key rate limit is 25 requests per day."
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"Information": message}))) as client:
+        alpha = AlphaVantageClient("test", client=client, min_interval_seconds=0)
+        with pytest.raises(ProviderLimitError) as exc:
+            await alpha.search("Apple")
+    assert exc.value.kind == "daily_quota"
+    assert "daily quota reached" in str(exc.value).lower()

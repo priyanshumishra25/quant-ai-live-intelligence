@@ -89,7 +89,7 @@ def test_experiment_lab_and_system_overview():
         system = client.get("/api/v1/system", headers=headers)
         assert system.status_code == 200
         body = system.json()
-        assert body["version"] == "3.0.0"
+        assert body["version"] == "3.0.1"
         assert body["models_loaded"] == 15
         assert "walk-forward evaluation" in body["capabilities"]
 

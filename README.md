@@ -72,6 +72,32 @@ Shows runtime telemetry, provider readiness, cache behaviour, architecture and i
 
 ---
 
+## Free-tier behaviour
+
+The live path is deliberately conservative with Alpha Vantage requests:
+
+- opening or refreshing the dashboard makes **zero live stock-analysis calls**;
+- live providers are contacted only when you click **Analyze stock**;
+- an uppercase ticker such as `AAPL` skips company-name symbol search;
+- daily history uses `outputsize=compact` by default because Alpha Vantage documents full daily history as a premium-key capability;
+- Alpha Vantage calls are serialized and spaced slightly over one second apart;
+- symbol resolution is cached for 7 days;
+- daily price history is cached for 6 hours;
+- market news is cached for 30 minutes;
+- final stock-intelligence responses are cached for 30 minutes;
+- changing only the 1d/5d/20d horizon reuses provider data rather than spending more provider requests.
+
+If Alpha Vantage reports that its daily quota has been reached, the API returns HTTP `429` with a concise message while the Offline Lab and already-cached provider results remain usable.
+
+For a free key, keep:
+
+```dotenv
+ALPHA_VANTAGE_OUTPUTSIZE=compact
+ALPHA_VANTAGE_MIN_INTERVAL_SECONDS=1.10
+```
+
+`ALPHA_VANTAGE_OUTPUTSIZE=full` is available as an explicit opt-in for users whose Alpha Vantage plan supports it.
+
 ## Quick start
 
 ### 1. Reproducible offline mode

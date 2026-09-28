@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.1 — Free-tier provider hardening
+
+- Removed automatic live analysis on page load; Alpha Vantage is contacted only after an explicit Analyze action.
+- Changed Alpha Vantage daily-history requests to `outputsize=compact` by default; `full` remains opt-in for premium keys.
+- Added per-provider pacing so Alpha Vantage calls are serialized and spaced by 1.10 seconds by default.
+- Added provider-level caches for symbol resolution (7 days), daily history (6 hours), news (30 minutes), and Reddit retrieval (10 minutes).
+- Increased the final live-intelligence response cache to 30 minutes.
+- Uppercase ticker inputs such as `AAPL` can skip the symbol-search API call.
+- Changing forecast horizon reuses cached resolution/history/news instead of spending another Alpha Vantage request.
+- Added friendly quota/rate-limit/premium errors and maps provider limit conditions to HTTP 429.
+- Fixed historical news alignment so evidence older than the available market-history window is not collapsed onto the first training date.
+- Added regression tests for provider caching, ticker-search skipping, free-tier compact history, and quota-message translation.
+
 ## 3.0.0 — Live Intelligence
 
 ### Added
@@ -10,7 +23,7 @@
 - Reddit OAuth adapter with paginated public-post search and top-thread comment retrieval.
 - Ephemeral finance-oriented Reddit sentiment scoring.
 - Dated alternative-data feature construction with exponential decay.
-- On-demand ridge fusion model combining technical, news and Reddit features.
+- On-demand ridge model over technical + historical news features, with a fixed bounded Reddit inference-time overlay.
 - Chronological holdout validation before final refit.
 - Forecast intervals, evidence-quality scoring and source-family contribution attribution.
 - Source-attributed evidence stream in the dashboard.
