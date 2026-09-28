@@ -1,0 +1,176 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quant-ai
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: quant-ai-secrets
+  namespace: quant-ai
+type: Opaque
+stringData:
+  AUTH_USERNAME: demo
+  AUTH_PASSWORD: quantai-demo
+  JWT_SECRET: change-this-before-public-deployment-at-least-32-bytes
+  ALPHA_VANTAGE_KEY: ""
+  REDDIT_CLIENT_ID: ""
+  REDDIT_SECRET: ""
+  REDDIT_USER_AGENT: QuantAIResearch/3.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quant-ai-config
+  namespace: quant-ai
+data:
+  ENV: production
+  CACHE_BACKEND: redis
+  REDIS_URL: redis://redis:6379/0
+  MARKET_DATA_PROVIDER: bundled
+  API_WORKERS: "1"
+  INTELLIGENCE_LOOKBACK_DAYS: "365"
+  INTELLIGENCE_NEWS_LIMIT: "500"
+  INTELLIGENCE_REDDIT_LIMIT: "100"
+  INTELLIGENCE_REDDIT_COMMENT_POSTS: "5"
+  INTELLIGENCE_REDDIT_COMMENTS_PER_POST: "20"
+  REDIS_TTL_INTELLIGENCE: "300"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: quant-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: quant-ai
+spec:
+  selector: {app: redis}
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: quant-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: quant-ai-api}
+  template:
+    metadata:
+      labels: {app: quant-ai-api}
+    spec:
+      containers:
+        - name: api
+          # Build deployment/Dockerfile target `api` and push it under this name.
+          image: quant-ai-api:3.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: {name: quant-ai-config}
+            - secretRef: {name: quant-ai-secrets}
+          readinessProbe:
+            httpGet: {path: /api/health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /api/health, port: 8000}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: {cpu: "100m", memory: "128Mi"}
+            limits: {cpu: "1", memory: "512Mi"}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: quant-ai
+spec:
+  selector: {app: quant-ai-api}
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: quant-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: quant-ai-frontend}
+  template:
+    metadata:
+      labels: {app: quant-ai-frontend}
+    spec:
+      containers:
+        - name: frontend
+          # Build frontend/Dockerfile and push it under this name.
+          image: quant-ai-frontend:3.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet: {path: /, port: 80}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: quant-ai
+spec:
+  selector: {app: quant-ai-frontend}
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-ai
+  namespace: quant-ai
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quant-ai.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port: {number: 80}

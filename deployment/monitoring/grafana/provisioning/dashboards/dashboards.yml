@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: Quant AI
+    folder: Quant AI
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

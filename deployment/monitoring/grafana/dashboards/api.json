@@ -1,0 +1,11 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {"type":"stat","title":"API requests","targets":[{"expr":"quant_ai_http_requests_total","refId":"A"}],"gridPos":{"h":8,"w":8,"x":0,"y":0}},
+    {"type":"timeseries","title":"Request latency","targets":[{"expr":"rate(quant_ai_http_request_seconds_sum[5m]) / clamp_min(rate(quant_ai_http_request_seconds_count[5m]), 0.0001)","refId":"A"}],"gridPos":{"h":8,"w":16,"x":8,"y":0}}
+  ],
+  "schemaVersion": 39,
+  "title": "Quant AI API",
+  "version": 1
+}

@@ -1,0 +1,47 @@
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# ML / data artifacts (keep the tiny published bootstrap artefacts only)
+artifacts/*
+!artifacts/MANIFEST.sha256
+!artifacts/models/
+artifacts/models/*
+!artifacts/models/*.json
+models/checkpoints/
+mlruns/
+data/raw/
+data/cache/
+*.pt
+*.pth
+*.ckpt
+*.joblib
+*.pkl
+
+# Frontend
+node_modules/
+dist/
+build/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Generated experiment outputs
+results/*/
+# Browser-ready ES modules are intentionally committed for the zero-install demo.
+!frontend/dist/
+!frontend/dist/*.js

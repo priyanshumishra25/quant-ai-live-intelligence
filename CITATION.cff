@@ -1,0 +1,7 @@
+cff-version: "1.2.0"
+message: "If you use this software in academic work, please cite the archived software release and associated manuscript when available."
+title: "Quant AI Live Stock Intelligence"
+type: software
+version: "3.0.0"
+date-released: 2026-09-28
+abstract: "Software and AI engineering portfolio platform for live stock intelligence using historical market data, news sentiment, Reddit evidence, chronological validation, explainable on-demand forecasting, and a deterministic offline research path."

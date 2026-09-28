@@ -1,0 +1,2 @@
+# Default runnable installation.
+-r requirements-core.txt

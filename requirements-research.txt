@@ -1,0 +1,166 @@
+# ============================================================
+# Quant AI Platform — requirements.txt
+# Pin exact versions for reproducibility in production
+# ============================================================
+
+# ---- Core ----
+numpy==1.26.4
+pandas==2.2.2
+scipy==1.13.0
+pyarrow==16.1.0
+
+# ---- Market Data ----
+yfinance==0.2.40
+pandas-datareader==0.10.0
+alpha-vantage==2.3.1
+polygon-api-client==1.14.2
+twelvedata==1.3.1
+ccxt==4.3.18          # crypto (Binance etc.)
+quandl==3.7.0
+
+# ---- Technical Indicators ----
+ta==0.11.0             # 130+ indicators
+ta-lib==0.4.28         # C-based, ultra-fast
+pandas-ta==0.3.14b0
+
+# ---- Deep Learning ----
+torch==2.3.1
+torchvision==0.18.1
+pytorch-lightning==2.2.4
+tensorflow==2.16.1
+keras==3.3.3
+einops==0.8.0          # tensor rearranging
+timm==1.0.3            # vision transformers
+
+# ---- Time Series ----
+pytorch-forecasting==1.1.1   # Temporal Fusion Transformer
+neuralforecast==1.7.4
+statsmodels==0.14.2
+prophet==1.1.5
+
+# ---- NLP / Sentiment ----
+transformers==4.41.2
+tokenizers==0.19.1
+sentence-transformers==3.0.1
+datasets==2.19.2
+accelerate==0.30.1
+peft==0.11.1           # LoRA fine-tuning
+evaluate==0.4.2
+finbert-embedding==0.1.4
+
+# ---- Gradient Boosting ----
+xgboost==2.0.3
+lightgbm==4.3.0
+catboost==1.2.5
+scikit-learn==1.5.0
+
+# ---- Reinforcement Learning ----
+stable-baselines3==2.3.2
+gymnasium==0.29.1
+shimmy==1.3.0
+
+# ---- Graph Neural Networks ----
+torch-geometric==2.5.3
+networkx==3.3
+
+# ---- Explainability ----
+shap==0.45.1
+lime==0.2.0.1
+captum==0.7.0          # PyTorch attribution
+
+# ---- Hyperparameter Optimization ----
+optuna==3.6.1
+ray[tune]==2.22.0
+hyperopt==0.2.7
+
+# ---- Bayesian Methods ----
+pymc==5.14.0
+arviz==0.18.0
+
+# ---- Web Scraping ----
+scrapy==2.11.2
+playwright==1.44.0
+selenium==4.21.0
+beautifulsoup4==4.12.3
+httpx==0.27.0
+aiohttp==3.9.5
+fake-useragent==1.5.1
+2captcha-python==1.2.5
+rotating-proxies==0.6.2
+
+# ---- NLP Utilities ----
+spacy==3.7.4
+nltk==3.8.1
+gensim==4.3.2
+vaderSentiment==3.3.2
+textblob==0.18.0
+praw==7.7.1            # Reddit API
+feedparser==6.0.11
+
+# ---- API / Backend ----
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+pydantic-settings==2.2.1
+websockets==12.0
+starlette==0.37.2
+slowapi==0.1.9         # rate limiting
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+
+# ---- Streaming ----
+kafka-python==2.0.2
+aiokafka==0.10.0
+confluent-kafka==2.4.0
+redis==5.0.5
+celery==5.4.0
+
+# ---- Databases ----
+sqlalchemy==2.0.30
+alembic==1.13.1
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+motor==3.4.0            # async MongoDB
+pymongo==4.7.3
+pinecone-client==4.0.0
+qdrant-client==1.9.1
+
+# ---- Backtesting ----
+vectorbt==0.25.2
+backtrader==1.9.78.123
+zipline-reloaded==3.0.3
+
+# ---- Risk & Portfolio ----
+pyportfolioopt==1.5.5
+riskfolio-lib==6.0.1
+arch==7.0.0             # GARCH models
+
+# ---- MLOps ----
+mlflow==2.13.2
+wandb==0.17.2
+great-expectations==0.18.19
+feast==0.39.0           # feature store
+
+# ---- Monitoring ----
+prometheus-client==0.20.0
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+loguru==0.7.2
+structlog==24.1.0
+
+# ---- Infrastructure ----
+docker==7.1.0
+boto3==1.34.125         # AWS
+google-cloud-storage==2.17.0
+
+# ---- Utilities ----
+python-dotenv==1.0.1
+pyyaml==6.0.1
+click==8.1.7
+rich==13.7.1
+tqdm==4.66.4
+joblib==1.4.2
+schedule==1.2.2
+apscheduler==3.10.4
+arrow==1.3.0            # datetime utilities

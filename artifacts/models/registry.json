@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "data_source": "deterministic synthetic research fixture",
+  "seed": 20260920,
+  "tickers": {
+    "AAPL": {
+      "1d": "AAPL_1d.json",
+      "5d": "AAPL_5d.json",
+      "20d": "AAPL_20d.json"
+    },
+    "MSFT": {
+      "1d": "MSFT_1d.json",
+      "5d": "MSFT_5d.json",
+      "20d": "MSFT_20d.json"
+    },
+    "NVDA": {
+      "1d": "NVDA_1d.json",
+      "5d": "NVDA_5d.json",
+      "20d": "NVDA_20d.json"
+    },
+    "SPY": {
+      "1d": "SPY_1d.json",
+      "5d": "SPY_5d.json",
+      "20d": "SPY_20d.json"
+    },
+    "QQQ": {
+      "1d": "QQQ_1d.json",
+      "5d": "QQQ_5d.json",
+      "20d": "QQQ_20d.json"
+    }
+  }
+}

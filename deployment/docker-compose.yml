@@ -1,0 +1,92 @@
+name: quant-ai
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: api
+    environment:
+      ENV: development
+      CACHE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      MARKET_DATA_PROVIDER: bundled
+      AUTH_USERNAME: ${AUTH_USERNAME:-demo}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-quantai-demo}
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-before-public-deployment}
+      API_WORKERS: 1
+      ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY:-}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_SECRET: ${REDDIT_SECRET:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-QuantAIResearch/3.0}
+      INTELLIGENCE_LOOKBACK_DAYS: ${INTELLIGENCE_LOOKBACK_DAYS:-365}
+      INTELLIGENCE_NEWS_LIMIT: ${INTELLIGENCE_NEWS_LIMIT:-500}
+      INTELLIGENCE_REDDIT_LIMIT: ${INTELLIGENCE_REDDIT_LIMIT:-100}
+      INTELLIGENCE_REDDIT_COMMENT_POSTS: ${INTELLIGENCE_REDDIT_COMMENT_POSTS:-5}
+      INTELLIGENCE_REDDIT_COMMENTS_PER_POST: ${INTELLIGENCE_REDDIT_COMMENTS_PER_POST:-20}
+      REDIS_TTL_INTELLIGENCE: ${REDIS_TTL_INTELLIGENCE:-300}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    profiles: ["observability"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-quantai-local}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
