@@ -135,6 +135,6 @@ Reddit content is accessed only through authorised API credentials and processed
 - exchange/session assumptions for non-US listings;
 - weak statistical power for less-liquid/newly listed securities.
 
-## Production path
+## Higher-assurance deployment path
 
-A production-grade successor should use licensed point-in-time data, exchange-specific calendars, immutable feature snapshots, experiment/model lineage, stronger NLP evaluation, explicit corporate-action policy, a frozen untouched test set, drift monitoring and portfolio-level risk controls.
+A higher-assurance successor should use licensed point-in-time data, exchange-specific calendars, immutable feature snapshots, experiment/model lineage, stronger NLP evaluation, explicit corporate-action policy, a frozen untouched test set, drift monitoring and portfolio-level risk controls.

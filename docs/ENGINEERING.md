@@ -50,7 +50,7 @@ Scraping would create brittle selectors, unclear access rights and anti-bot work
 
 ## Why Alpha Vantage rather than an undocumented finance endpoint
 
-The goal is an engineering portfolio, so data provenance matters. Alpha Vantage documents symbol search, daily time series and news/sentiment APIs. The provider adapter can later be swapped for Polygon, Finnhub, Bloomberg, Refinitiv or another licensed source.
+Data provenance is a product requirement. Alpha Vantage documents symbol search, daily time series and news/sentiment APIs. The provider adapter can later be swapped for Polygon, Finnhub, Bloomberg, Refinitiv or another licensed source.
 
 ## Why keep the offline fixture path
 
@@ -85,7 +85,7 @@ Each source therefore fails independently; the result records source errors and 
 
 ## What I would change for a production trading system
 
-This repository is a research/portfolio platform. A regulated or capital-bearing system would additionally need:
+This repository is a research platform. A regulated or capital-bearing system would additionally need:
 
 - licensed point-in-time data and clear entitlements;
 - market-calendar/session handling;
@@ -105,6 +105,6 @@ This repository is a research/portfolio platform. A regulated or capital-bearing
 
 The live path treats external API quota as a product constraint, not an afterthought. The browser never launches a live analysis automatically. Symbol resolution, history, news and Reddit results are cached independently beneath the final forecast cache, so changing model horizon does not trigger redundant upstream calls.
 
-Alpha Vantage calls are serialized and paced. Daily history defaults to the provider's compact mode, which supplies enough recent observations for this lightweight portfolio model while avoiding the premium-only full-history setting. Explicit uppercase ticker input can also bypass symbol lookup.
+Alpha Vantage calls are serialized and paced. Daily history defaults to the provider's compact mode, which supplies enough recent observations for this lightweight live model while avoiding the premium-only full-history setting. Explicit uppercase ticker input can also bypass symbol lookup.
 
 This layered cache design is intentional: caching only the final forecast would still waste quota whenever a user changed `5d` to `20d`, because the underlying market/news data are identical.

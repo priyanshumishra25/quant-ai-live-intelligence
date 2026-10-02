@@ -12,6 +12,12 @@
 - reject demo/default authentication secrets in staging/production;
 - remove disconnected research prototypes (RL, GNN, Kafka, scraper, options/tree stacks, retrainer, legacy DB/research scaffolding);
 - remove interview-specific repository copy and refresh publication metadata.
+- redesign the frontend as a restrained editorial market-research product with a public product site plus a left-rail analytical application;
+- add Methodology, Model Card, Security, Privacy Policy and Terms of Use views;
+- add neutral skeleton loading states, explicit empty/error states, text-first provider status and accessible focus/navigation;
+- expose market-session assignment and model usage on evidence items;
+- stop persisting API passwords in browser session storage;
+- enforce key frontend design exclusions in the release integrity check.
 
 ## 3.0.1 — Free-tier provider hardening
 
@@ -62,7 +68,7 @@
 - experiment-vs-baseline lab;
 - JWT auth, caching, WebSockets, metrics and containers.
 
-## 2.1.0 — Engineering Portfolio
+## 2.1.0 - Engineering Release
 
 Introduced the strict-TypeScript product UI, Experiment Lab, System telemetry, engineering trade-off documentation and model card.
 

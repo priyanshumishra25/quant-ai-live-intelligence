@@ -40,7 +40,9 @@ The system combines software engineering and applied ML concerns:
 
 The live response explains **which source family moved the forecast**, shows the top individual model drivers, reports chronological holdout metrics, and exposes the source items used to construct the current intelligence state.
 
-## Product surfaces
+## Product website and application
+
+The frontend now has two layers: a public product site and the authenticated analytical application. The public site contains Product, Methodology, Model Card, Security, Privacy Policy and Terms of Use views. The application keeps four operating views in a left navigation rail. The visual system is deliberately restrained: warm neutral surfaces, flat borders, no gradients, no decorative icon library, no drop shadows and no fabricated testimonials or product screenshots.
 
 ### Live Intelligence
 
@@ -296,10 +298,10 @@ GET  /metrics
 ## Architecture
 
 ```text
-Strict TypeScript dashboard
-          │
-          ▼
-       FastAPI
+Public product site + strict TypeScript application
+                    │
+                    ▼
+                 FastAPI
           │
      ┌────┴───────────────────────────────┐
      │                                    │
@@ -341,7 +343,7 @@ The release gate checks:
 
 ```text
 Python compilation
-16 unit/integration tests
+23 unit/integration tests
 Alpha Vantage adapter parsing via mocked documented responses
 Reddit OAuth/search/comment adapter behaviour via mocked responses
 live fusion pipeline with synthetic provider doubles
@@ -397,7 +399,7 @@ services/                  auth, cache, fixture inference and experiment engine
 backtesting/               cost-aware walk-forward execution engine
 artifacts/models/          persisted deterministic bootstrap models
 data/sample/               deterministic OHLCV fixture
-frontend/src/              strict TypeScript dashboard
+frontend/src/              strict TypeScript application
 frontend/dist/             committed browser-ready modules
 deployment/                Docker, Compose, K8s and Prometheus config
 scripts/analyze_stock.py   live CLI entry point
