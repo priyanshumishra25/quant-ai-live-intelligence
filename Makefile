@@ -11,12 +11,12 @@ analyze:
 	PYTHONPATH=. python scripts/analyze_stock.py "$(QUERY)" --horizon "$(or $(HORIZON),5d)"
 
 frontend-build:
-	npx --prefix frontend tsc -p frontend/tsconfig.json
+	cd frontend && npm exec -- tsc -p tsconfig.json
 
 verify:
 	python -m compileall -q .
 	pytest -q
-	npx --prefix frontend tsc -p frontend/tsconfig.json --noEmit
+	cd frontend && npm exec -- tsc -p tsconfig.json --noEmit
 	node --check frontend/dist/app.js
 	node --check frontend/dist/api.js
 	node --check frontend/dist/chart.js
