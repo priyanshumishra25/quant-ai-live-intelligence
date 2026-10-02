@@ -134,7 +134,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Quant AI Live Intelligence Platform",
     description=(
-        "Software + AI engineering portfolio API with a reproducible offline path and an optional live "
+        "Market intelligence and ML research API with a reproducible offline path and an optional live "
         "intelligence pipeline that fuses historical trends, documented news feeds and Reddit evidence."
     ),
     version="3.0.2",
@@ -274,6 +274,7 @@ async def health(request: Request):
         "data_provider": predictor.market.provider,
         "live_intelligence_configured": bool(request.app.state.intelligence.configured),
         "reddit_configured": bool(request.app.state.intelligence.reddit.configured),
+        "environment": settings.env,
         "data_mode": "bundled_synthetic_fixture" if predictor.market.provider == "bundled" else "external_market_data",
     }
 

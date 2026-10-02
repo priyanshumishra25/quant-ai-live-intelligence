@@ -776,6 +776,31 @@ class LiveIntelligenceService:
         return frame
 
     @staticmethod
+    def _public_evidence_item(index: pd.DatetimeIndex, item: IntelligenceItem) -> dict[str, Any]:
+        data = item.public_dict()
+        dates = pd.DatetimeIndex(index).tz_localize(None).normalize()
+        local = item.published_at.astimezone(US_EASTERN)
+        local_day = pd.Timestamp(local.date())
+        market_session: str | None = None
+        reason: str | None = None
+        if len(dates) and dates[0] <= local_day <= dates[-1]:
+            after_close = (local.hour, local.minute, local.second) >= (16, 0, 0)
+            pos = dates.searchsorted(local_day, side="right" if after_close else "left")
+            if pos < len(dates):
+                assigned = dates[pos]
+                market_session = assigned.date().isoformat()
+                if after_close:
+                    reason = "published at or after 4:00 PM ET; assigned to next market session"
+                elif assigned != local_day:
+                    reason = "published on a non-trading day; assigned to next market session"
+                else:
+                    reason = "published before market close; assigned to same market session"
+        data["market_session"] = market_session
+        data["session_assignment_reason"] = reason
+        data["model_usage"] = "historical feature plus current inference" if item.kind == "news" else "inference only"
+        return data
+
+    @staticmethod
     def _recent_alt_vector(items: list[IntelligenceItem], now: datetime) -> dict[str, float]:
         cutoff = now - timedelta(days=7)
         recent = [item for item in items if item.published_at >= cutoff]
@@ -1122,7 +1147,7 @@ class LiveIntelligenceService:
                 "news_count": len(news),
                 "reddit_post_count": len(reddit_posts),
                 "reddit_comment_count": len(reddit_comments),
-                "items": [item.public_dict() for item in recent_items[:40]],
+                "items": [self._public_evidence_item(history.index, item) for item in recent_items[:40]],
             },
             "history": [
                 {"date": idx.date().isoformat(), "close": round(float(row["close"]), 4)}

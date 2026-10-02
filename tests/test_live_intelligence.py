@@ -378,3 +378,21 @@ def test_twenty_day_validation_is_purged_and_flagged_low_reliability_on_compact_
     assert validation["effective_non_overlapping_observations"] <= 2
     assert validation["reliability"] == "LOW"
     assert pd.Timestamp(meta["train_end"]) < pd.Timestamp(meta["validation_start"])
+
+
+def test_public_evidence_item_exposes_market_session_assignment():
+    dates = pd.DatetimeIndex(["2026-09-18", "2026-09-21"])
+    after_close = IntelligenceItem(
+        source="Example News",
+        kind="news",
+        title="Friday after-close update",
+        text="Company update published after the closing bell",
+        published_at=datetime(2026, 9, 18, 21, 30, tzinfo=timezone.utc),  # 17:30 ET
+        url="https://example.com/after-close",
+        sentiment=0.2,
+        relevance=0.9,
+    )
+    public = LiveIntelligenceService._public_evidence_item(dates, after_close)
+    assert public["market_session"] == "2026-09-21"
+    assert "after 4:00 PM ET" in public["session_assignment_reason"]
+    assert public["model_usage"] == "historical feature plus current inference"
