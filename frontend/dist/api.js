@@ -2,23 +2,39 @@ const dockerOrigin = location.port === "3000" || location.port === "80" || locat
 const API = window.QUANT_API_BASE || (dockerOrigin ? "" : "http://localhost:8000");
 let token = sessionStorage.getItem("quant_token") || "";
 let tokenExp = Number(sessionStorage.getItem("quant_token_exp") || 0);
-let username = sessionStorage.getItem("quant_user") || "demo";
-let password = sessionStorage.getItem("quant_pass") || "quantai-demo";
+let username = sessionStorage.getItem("quant_user") || "";
+let password = "";
 export class AuthError extends Error {
 }
 export function setCredentials(user, pass) {
-    username = user;
+    username = user.trim();
     password = pass;
     token = "";
     tokenExp = 0;
-    sessionStorage.setItem("quant_user", user);
-    sessionStorage.setItem("quant_pass", pass);
+    sessionStorage.setItem("quant_user", username);
+    sessionStorage.removeItem("quant_token");
+    sessionStorage.removeItem("quant_token_exp");
 }
+export function clearCredentials() {
+    token = "";
+    tokenExp = 0;
+    username = "";
+    password = "";
+    sessionStorage.removeItem("quant_token");
+    sessionStorage.removeItem("quant_token_exp");
+    sessionStorage.removeItem("quant_user");
+    sessionStorage.removeItem("quant_pass");
+}
+export function storedUsername() { return username; }
 async function ensureToken() {
     if (token && Date.now() < tokenExp - 10_000)
         return token;
+    if (!username || !password)
+        throw new AuthError("Authentication required");
     const res = await fetch(`${API}/api/v1/auth/token`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
     });
     if (!res.ok)
         throw new AuthError("Authentication failed");
@@ -38,6 +54,8 @@ async function request(path, init = {}) {
     let res = await fetch(`${API}${path}`, { ...init, headers });
     if (res.status === 401) {
         token = "";
+        sessionStorage.removeItem("quant_token");
+        sessionStorage.removeItem("quant_token_exp");
         await ensureToken();
         headers.set("Authorization", `Bearer ${token}`);
         res = await fetch(`${API}${path}`, { ...init, headers });

@@ -7,25 +7,48 @@ const dockerOrigin = location.port === "3000" || location.port === "80" || locat
 const API = (window as Window & { QUANT_API_BASE?: string }).QUANT_API_BASE || (dockerOrigin ? "" : "http://localhost:8000");
 let token = sessionStorage.getItem("quant_token") || "";
 let tokenExp = Number(sessionStorage.getItem("quant_token_exp") || 0);
-let username = sessionStorage.getItem("quant_user") || "demo";
-let password = sessionStorage.getItem("quant_pass") || "quantai-demo";
+let username = sessionStorage.getItem("quant_user") || "";
+let password = "";
 
 export class AuthError extends Error {}
 
 export function setCredentials(user:string, pass:string) {
-  username = user; password = pass; token = ""; tokenExp = 0;
-  sessionStorage.setItem("quant_user", user); sessionStorage.setItem("quant_pass", pass);
+  username = user.trim();
+  password = pass;
+  token = "";
+  tokenExp = 0;
+  sessionStorage.setItem("quant_user", username);
+  sessionStorage.removeItem("quant_token");
+  sessionStorage.removeItem("quant_token_exp");
 }
+
+export function clearCredentials() {
+  token = "";
+  tokenExp = 0;
+  username = "";
+  password = "";
+  sessionStorage.removeItem("quant_token");
+  sessionStorage.removeItem("quant_token_exp");
+  sessionStorage.removeItem("quant_user");
+  sessionStorage.removeItem("quant_pass");
+}
+
+export function storedUsername() { return username; }
 
 async function ensureToken() {
   if (token && Date.now() < tokenExp - 10_000) return token;
+  if (!username || !password) throw new AuthError("Authentication required");
   const res = await fetch(`${API}/api/v1/auth/token`, {
-    method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,password}),
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username,password}),
   });
   if (!res.ok) throw new AuthError("Authentication failed");
   const body = await res.json() as {access_token:string;expires_in:number};
-  token = body.access_token; tokenExp = Date.now() + body.expires_in * 1000;
-  sessionStorage.setItem("quant_token", token); sessionStorage.setItem("quant_token_exp", String(tokenExp));
+  token = body.access_token;
+  tokenExp = Date.now() + body.expires_in * 1000;
+  sessionStorage.setItem("quant_token", token);
+  sessionStorage.setItem("quant_token_exp", String(tokenExp));
   return token;
 }
 
@@ -36,7 +59,11 @@ async function request<T>(path:string, init:RequestInit={}) {
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type","application/json");
   let res = await fetch(`${API}${path}`, {...init, headers});
   if (res.status === 401) {
-    token = ""; await ensureToken(); headers.set("Authorization", `Bearer ${token}`);
+    token = "";
+    sessionStorage.removeItem("quant_token");
+    sessionStorage.removeItem("quant_token_exp");
+    await ensureToken();
+    headers.set("Authorization", `Bearer ${token}`);
     res = await fetch(`${API}${path}`, {...init, headers});
   }
   if (!res.ok) {

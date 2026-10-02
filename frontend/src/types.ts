@@ -9,6 +9,7 @@ export interface Health {
   data_mode: string;
   live_intelligence_configured: boolean;
   reddit_configured: boolean;
+  environment?: "development" | "test" | "staging" | "production";
 }
 
 export interface ModelRegistry {
@@ -136,6 +137,9 @@ export interface EvidenceItem {
   relevance: number;
   engagement: number;
   subreddit: string;
+  market_session?: string | null;
+  session_assignment_reason?: string | null;
+  model_usage?: string;
 }
 
 export interface LiveIntelligence {
@@ -200,6 +204,12 @@ export interface LiveIntelligence {
       method: string;
       candidate_alphas: number[];
       selected_gcv: number;
+    };
+    reddit_overlay?: {
+      type: string;
+      max_residual_sigma_fraction: number;
+      selection: string;
+      current_effect: number;
     };
     validation: {
       mae_pct_points: number;

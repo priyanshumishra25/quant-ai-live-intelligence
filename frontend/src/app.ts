@@ -1,6 +1,6 @@
-import { api, AuthError, setCredentials } from "./api.js";
+import { api, AuthError, clearCredentials, setCredentials, storedUsername } from "./api.js";
 import { lineChart } from "./chart.js";
-import type { ExperimentModel, ExperimentResult, Horizon, LiveIntelligence, Prediction } from "./types.js";
+import type { ExperimentModel, ExperimentResult, Health, Horizon, LiveIntelligence, Prediction } from "./types.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id:string) => document.getElementById(id) as T;
 const money = (n:number) => `$${n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -8,6 +8,8 @@ const pct = (n:number,d=2) => `${n>=0?"+":""}${n.toFixed(d)}%`;
 const esc = (value:unknown) => String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch] || ch));
 const safeUrl = (value:string) => { try { const u=new URL(value); return ["http:","https:"].includes(u.protocol)?u.href:"#"; } catch { return "#"; } };
 const sentimentClass = (v:number) => v > 0.12 ? "positive" : v < -0.12 ? "negative" : "neutral-text";
+const signalClass = (value:string) => value.includes("BULLISH") ? "positive" : value.includes("BEARISH") ? "negative" : "";
+const humanSignal = (value:string) => value.replaceAll("_"," ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
 let currentTicker = "AAPL";
 let currentHorizon: Horizon = "5d";
@@ -15,134 +17,267 @@ let liveHorizon: Horizon = "5d";
 let latestPrediction: Prediction | null = null;
 let liveConfigured = false;
 let redditConfigured = false;
+let appDataReady = false;
+let currentHealth: Health | null = null;
+let pendingView = "liveView";
 
-function status(kind:string,text:string){ $("status").className=`status ${kind}`; $("statusText").textContent=text; }
-function metric(label:string,value:string,sub=""){ return `<article class="metric"><small>${esc(label)}</small><b>${esc(value)}</b>${sub?`<span>${esc(sub)}</span>`:""}</article>`; }
-function modelLabel(id:string){ return ({ridge:"Ridge ML",momentum:"Momentum",mean_reversion:"Mean reversion"} as Record<string,string>)[id] || id; }
+function status(kind:string,text:string){
+  $("status").className=`status ${kind}`;
+  $("statusText").textContent=text;
+}
+
+function metric(label:string,value:string,sub=""){
+  return `<dl class="metric-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd>${sub?`<small>${esc(sub)}</small>`:""}</dl>`;
+}
+
+function modelLabel(id:string){
+  return ({ridge:"Ridge ML",momentum:"Momentum",mean_reversion:"Mean reversion"} as Record<string,string>)[id] || id;
+}
+
+function setProofFromPrediction(p:Prediction) {
+  const proofPrice = document.getElementById("proofPrice");
+  if (!proofPrice) return;
+  proofPrice.textContent = money(p.current_price);
+  $("proofReturn").textContent = pct(p.predicted_return_pct);
+  $("proofSignal").textContent = humanSignal(p.signal);
+  $("proofTarget").textContent = money(p.predicted_price);
+  $("proofInterval").textContent = `${money(p.lower_bound)} to ${money(p.upper_bound)}`;
+  $("proofRows").textContent = String(p.model_metadata.n_samples);
+}
+
+function scoreRows(entries:Array<[string,number,string]>) {
+  return entries.map(([name,value,kind]) => `
+    <div class="score-row">
+      <span>${esc(name)}</span>
+      <div class="score-bar" aria-hidden="true"><span class="${kind}" style="width:${Math.max(0,Math.min(100,value*100))}%"></span></div>
+      <strong>${(value*100).toFixed(0)}</strong>
+    </div>`).join("");
+}
+
+function featureRows(entries:Array<[string,number]>, percentageScale=100) {
+  const max = Math.max(...entries.map(([,v])=>Math.abs(v)), 0.000001);
+  return entries.map(([name,value]) => `
+    <div class="feature-row">
+      <span>${esc(name.replaceAll("_"," "))}</span>
+      <div class="feature-bar" aria-hidden="true"><span style="width:${Math.max(2,Math.min(100,Math.abs(value)/max*100))}%"></span></div>
+      <strong>${(value*percentageScale).toFixed(1)}${percentageScale===100?"%":""}</strong>
+    </div>`).join("");
+}
 
 function renderPrediction(p:Prediction) {
   latestPrediction = p;
+  setProofFromPrediction(p);
   $("heroTicker").textContent = p.ticker;
   $("heroPrice").textContent = money(p.current_price);
   $("heroReturn").textContent = pct(p.predicted_return_pct);
   $("heroReturn").className = p.predicted_return_pct >= 0 ? "positive" : "negative";
-  $("heroSignal").textContent = p.signal.replaceAll("_"," ");
-  $("heroSignal").className = `signal ${p.signal.includes("BULLISH")?"positive":p.signal.includes("BEARISH")?"negative":""}`;
-  $("heroMeta").textContent = `${p.horizon} horizon · ${p.model_metadata.model_type} · ${p.latency_ms.toFixed(2)} ms ${p.cache_hit?"· cache hit":""}`;
+  $("heroSignal").textContent = humanSignal(p.signal);
+  $("heroSignal").className = `signal-label ${signalClass(p.signal)}`;
+  $("heroMeta").textContent = `${p.horizon} horizon · ${p.model_metadata.model_type} · ${p.latency_ms.toFixed(2)} ms${p.cache_hit?" · cached":""}`;
   $("predictionMetrics").innerHTML = [
-    metric("Target",money(p.predicted_price)), metric("95% low",money(p.lower_bound)), metric("95% high",money(p.upper_bound)),
-    metric("Signal strength",`${(p.signal_strength*100).toFixed(1)}%`,`heuristic score · not probability`), metric("Volatility",`${p.predicted_volatility_pct.toFixed(1)}%`), metric("Risk",`${p.risk_score.toFixed(1)}/10`),
+    metric("Forecast price",money(p.predicted_price)),
+    metric("95% interval",`${money(p.lower_bound)} to ${money(p.upper_bound)}`),
+    metric("Signal strength",`${(p.signal_strength*100).toFixed(1)}`,"heuristic score out of 100"),
+    metric("Volatility",`${p.predicted_volatility_pct.toFixed(1)}%`),
+    metric("Risk score",`${p.risk_score.toFixed(1)} / 10`),
+    metric("Training rows",String(p.model_metadata.n_samples)),
   ].join("");
   const features = Object.entries(p.feature_importance).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  $("featureList").innerHTML = features.map(([name,val]) => `<div class="feature"><span>${esc(name)}</span><i><em style="width:${Math.min(100,val*260)}%"></em></i><b>${(val*100).toFixed(1)}%</b></div>`).join("");
+  $("featureList").innerHTML = featureRows(features);
   $("explanation").textContent = p.explanation;
-  $("probabilities").innerHTML = [
-    ["BULLISH",p.bullish_score,"positive"],["NEUTRAL",p.neutral_score,"neutral"],["BEARISH",p.bearish_score,"negative"],
-  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}</b></div>`).join("");
+  $("probabilities").innerHTML = scoreRows([
+    ["Bullish",p.bullish_score,"positive"],["Neutral",p.neutral_score,"neutral"],["Bearish",p.bearish_score,"negative"],
+  ]);
 }
 
 async function refreshExplorer() {
-  status("busy","Running fixture inference…");
+  status("busy","Running deterministic fixture inference");
   const [pred, hist, overview] = await Promise.all([api.prediction(currentTicker,currentHorizon),api.history(currentTicker),api.overview()]);
   renderPrediction(pred);
   lineChart($("priceChart") as unknown as SVGSVGElement,[{values:hist.rows.map(r=>r.close),className:"primary"}]);
-  $("marketMetrics").innerHTML = metric("Fear / greed",overview.fear_greed_index.toFixed(1))+metric("VIX proxy",`${overview.vix_proxy.toFixed(1)}%`)+
-    Object.entries(overview.sector_performance).map(([k,v])=>metric(k,pct(v))).join("");
-  $("movers").innerHTML = overview.top_movers.map(m=>`<div class="row"><strong>${esc(m.ticker)}</strong><span class="${m.return_pct>=0?"positive":"negative"}">${pct(m.return_pct)}</span></div>`).join("");
-  status("ok",liveConfigured?"live intelligence ready":"offline research mode");
+  $("marketMetrics").innerHTML = [
+    metric("Fear / greed",overview.fear_greed_index.toFixed(1)),
+    metric("VIX proxy",`${overview.vix_proxy.toFixed(1)}%`),
+    ...Object.entries(overview.sector_performance).map(([k,v])=>metric(k,pct(v))),
+  ].join("");
+  $("movers").innerHTML = overview.top_movers.map(m=>`<div class="driver-row"><strong>${esc(m.ticker)}</strong><span class="${m.return_pct>=0?"positive":"negative"}">${pct(m.return_pct)}</span></div>`).join("");
+  status("ok",liveConfigured?"Live intelligence ready":"Offline research mode");
 }
 
-function sourceSummaryCard(name:string, score:number, volume:number, engagement:number, detail:string) {
+function sourceSummaryRow(name:string, score:number, volume:number, engagement:number, detail:string) {
   const width = Math.min(100, Math.abs(score)*100);
-  return `<article class="source-summary"><div><small>${esc(name)}</small><b class="${sentimentClass(score)}">${score>=0?"+":""}${score.toFixed(3)}</b></div><div class="sentiment-axis"><i class="${score>=0?"positive-bg":"negative-bg"}" style="width:${width}%;margin-left:${score>=0?"50%":`${50-width}%`}"></i></div><p>${volume} items · ${engagement.toLocaleString()} engagement</p><span>${esc(detail)}</span></article>`;
+  return `<div class="source-row">
+    <strong class="${sentimentClass(score)}">${esc(name)} ${score>=0?"+":""}${score.toFixed(3)}</strong>
+    <div class="source-meter" aria-hidden="true"><span class="${score>=0?"positive-bg":"negative-bg"}" style="width:${width}%"></span></div>
+    <p>${esc(detail)}</p>
+    <small>${volume} items · ${engagement.toLocaleString()} engagement</small>
+  </div>`;
 }
 
 function renderLive(result:LiveIntelligence) {
   const p=result.prediction, m=result.market, s=result.sentiment;
   $("liveCompany").textContent = `${result.company.name} · ${result.ticker}`;
   $("livePrice").textContent = money(m.current_price);
-  $("liveSignal").textContent = p.signal.replaceAll("_"," ");
-  $("liveSignal").className=`signal ${p.signal.includes("BULLISH")?"positive":p.signal.includes("BEARISH")?"negative":""}`;
+  $("liveSignal").textContent = humanSignal(p.signal);
+  $("liveSignal").className=`signal-label ${signalClass(p.signal)}`;
   $("livePredReturn").textContent = pct(p.predicted_return_pct);
   $("livePredReturn").className = p.predicted_return_pct>=0?"positive":"negative";
-  $("liveMeta").textContent = `${result.horizon} horizon · ${m.trend_regime} · ${result.latency_ms.toFixed(0)} ms ${result.cache_hit?"· cached":""}`;
+  $("liveMeta").textContent = `${result.horizon} horizon · ${m.trend_regime} · generated in ${result.latency_ms.toFixed(0)} ms${result.cache_hit?" · cached":""}`;
+
+  $("livePredictionMetrics").classList.remove("empty-metrics");
   $("livePredictionMetrics").innerHTML = [
-    metric("Target",money(p.predicted_price)), metric("95% low",money(p.lower_bound)), metric("95% high",money(p.upper_bound)),
-    metric("Signal strength",`${(p.signal_strength*100).toFixed(1)}%`,`heuristic score · not probability`),
-    metric("Source coverage",`${(p.source_coverage*100).toFixed(0)}%`,`evidence-volume diagnostic`),
-    metric("Holdout σ",`${p.holdout_residual_volatility_pct.toFixed(2)}%`,`purged holdout residuals`),
+    metric("Forecast price",money(p.predicted_price)),
+    metric("95% interval",`${money(p.lower_bound)} to ${money(p.upper_bound)}`),
+    metric("Direction",humanSignal(p.signal),`${(p.signal_strength*100).toFixed(1)} signal score`),
+    metric("Source coverage",`${(p.source_coverage*100).toFixed(0)}%`,"evidence-volume diagnostic"),
+    metric("Holdout residual sigma",`${p.holdout_residual_volatility_pct.toFixed(2)} pp`,"interval basis"),
+    metric("Validation reliability",result.model.validation.reliability,`≈${result.model.validation.effective_non_overlapping_observations} non-overlapping observations`),
   ].join("");
+
   lineChart($("livePriceChart") as unknown as SVGSVGElement,[{values:result.history.map(x=>x.close),className:"primary"}]);
-
   $("liveTrendMetrics").innerHTML = [
-    metric("1D",pct(m.returns_pct["1d"] ?? 0)), metric("5D",pct(m.returns_pct["5d"] ?? 0)), metric("20D",pct(m.returns_pct["20d"] ?? 0)),
-    metric("60D",pct(m.returns_pct["60d"] ?? 0)), metric("Ann. vol",`${m.annualised_volatility_pct.toFixed(1)}%`), metric("52W range",`${money(m.low_52w)} – ${money(m.high_52w)}`),
+    metric("1 day",pct(m.returns_pct["1d"] ?? 0)),
+    metric("5 days",pct(m.returns_pct["5d"] ?? 0)),
+    metric("20 days",pct(m.returns_pct["20d"] ?? 0)),
+    metric("60 days",pct(m.returns_pct["60d"] ?? 0)),
+    metric("Annualized volatility",`${m.annualised_volatility_pct.toFixed(1)}%`),
+    metric("52-week range",`${money(m.low_52w)} to ${money(m.high_52w)}`),
   ].join("");
+
   $("liveSourceSummary").innerHTML =
-    sourceSummaryCard("News",s.news.score,s.news.volume,s.news.engagement,"Alpha Vantage news + ticker sentiment")+
-    sourceSummaryCard("Reddit",s.reddit.score,s.reddit.volume,s.reddit.engagement,s.reddit_configured?"matched posts + top-thread comments":"not configured")+
-    sourceSummaryCard("Combined",s.combined_score,s.news.volume+s.reddit.volume,s.news.engagement+s.reddit.engagement,"65% news / 35% Reddit diagnostic");
+    sourceSummaryRow("News",s.news.score,s.news.volume,s.news.engagement,"Market news and ticker-level provider sentiment")+
+    sourceSummaryRow("Reddit",s.reddit.score,s.reddit.volume,s.reddit.engagement,s.reddit_configured?s.reddit_scope:"Not configured; no Reddit contribution applied");
 
-  $("liveProbabilities").innerHTML = [
-    ["BULLISH",p.bullish_score,"positive"],["NEUTRAL",p.neutral_score,"neutral"],["BEARISH",p.bearish_score,"negative"],
-  ].map(([name,v,cls])=>`<div><span>${name}</span><i><em class="${cls}" style="width:${Number(v)*100}%"></em></i><b>${(Number(v)*100).toFixed(0)}</b></div>`).join("");
+  $("liveProbabilities").innerHTML = scoreRows([
+    ["Bullish",p.bullish_score,"positive"],["Neutral",p.neutral_score,"neutral"],["Bearish",p.bearish_score,"negative"],
+  ]);
 
-  $("contributionMix").innerHTML = (["technical","news","reddit"] as const).map(name=>{
-    const value=p.contribution_mix[name] || 0;
-    return `<div class="feature"><span>${esc(name)}</span><i><em style="width:${Math.min(100,value*100)}%"></em></i><b>${(value*100).toFixed(1)}%</b></div>`;
-  }).join("");
-  $("liveDrivers").innerHTML = p.top_drivers.map(d=>`<div class="row"><strong>${esc(d.feature)}</strong><span class="${d.direction==='up'?"positive":"negative"}">${d.direction==='up'?"↑":"↓"} ${Math.abs(d.effect).toFixed(4)}</span></div>`).join("");
+  $("contributionMix").innerHTML = featureRows(([
+    ["technical",p.contribution_mix.technical || 0],
+    ["news",p.contribution_mix.news || 0],
+    ["reddit",p.contribution_mix.reddit || 0],
+  ] as Array<[string,number]>));
+
+  $("liveDrivers").innerHTML = p.top_drivers.map(d=>`<div class="driver-row"><strong>${esc(d.feature.replaceAll("_"," "))}</strong><span class="${d.direction==='up'?"positive":"negative"}">${d.direction==='up'?"Up":"Down"} ${Math.abs(d.effect).toFixed(4)}</span></div>`).join("");
 
   $("liveModelMetrics").innerHTML = [
-    metric("Fit rows",String(result.model.fit_rows_before_holdout),`${result.model.train_start} → purged holdout`),
-    metric("Holdout rows",String(result.model.validation.rows),`purge gap ${result.model.validation.purge_rows} rows`),
-    metric("Effective obs",`≈${result.model.validation.effective_non_overlapping_observations}`,`${result.model.validation.reliability} validation reliability`),
-    metric("Directional acc.",`${(result.model.validation.directional_accuracy*100).toFixed(1)}%`,`diagnostic only`),
+    metric("Training rows",String(result.model.fit_rows_before_holdout),`${result.model.train_start} to training cutoff`),
+    metric("Purged rows",String(result.model.validation.purge_rows),"horizon-length separation"),
+    metric("Holdout rows",String(result.model.validation.rows),`${result.model.validation_start} to ${result.model.validation_end}`),
+    metric("Effective observations",`≈${result.model.validation.effective_non_overlapping_observations}`,"approximate non-overlapping targets"),
     metric("Holdout MAE",`${result.model.validation.mae_pct_points.toFixed(2)} pp`),
-    metric("Ridge α",result.model.ridge_alpha.toFixed(2),`training-only GCV`),
+    metric("Directional accuracy",`${(result.model.validation.directional_accuracy*100).toFixed(1)}%`,"diagnostic only"),
+    metric("Holdout correlation",result.model.validation.correlation.toFixed(3)),
+    metric("Selected Ridge alpha",result.model.ridge_alpha.toFixed(3),"training-only generalized cross-validation"),
+    metric("Reliability",result.model.validation.reliability,"sample-size diagnostic"),
   ].join("");
   $("liveMethodology").textContent = result.model.methodology;
 
   const sourceErrors = Object.entries(s.source_errors);
-  $("sourceErrors").innerHTML = sourceErrors.length ? `<strong>Provider degradation:</strong> ${sourceErrors.map(([k,v])=>`${esc(k)} — ${esc(v)}`).join(" · ")}` : "All configured providers completed successfully.";
+  $("sourceErrors").innerHTML = sourceErrors.length
+    ? `<strong>Provider degradation:</strong> ${sourceErrors.map(([k,v])=>`${esc(k)}: ${esc(v)}`).join(" · ")}`
+    : "All configured providers completed successfully.";
+
+  const overlay = result.model.reddit_overlay;
+  if (overlay && s.reddit_configured) {
+    const effectPct = overlay.current_effect * 100;
+    $("redditOverlayDisclosure").hidden = false;
+    $("redditOverlayDisclosure").textContent = `Reddit inference adjustment: ${effectPct>=0?"+":""}${effectPct.toFixed(3)} percentage points. Maximum bound: ${overlay.max_residual_sigma_fraction.toFixed(2)} residual sigma. This is a fixed design guardrail, not an empirically optimized coefficient.`;
+  } else {
+    $("redditOverlayDisclosure").hidden = true;
+  }
 
   $("evidenceList").innerHTML = result.evidence.items.length ? result.evidence.items.map(item=>{
     const origin=item.kind==="news"?item.source:`r/${item.subreddit || "reddit"}`;
     const when=new Date(item.published_at).toLocaleString();
-    return `<article class="evidence-card"><div class="evidence-top"><span class="badge ${item.kind==='news'?'ai':''}">${esc(item.kind.replaceAll('_',' '))}</span><span class="${sentimentClass(item.sentiment)}">${item.sentiment>=0?"+":""}${item.sentiment.toFixed(3)}</span></div><a href="${esc(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a><p>${esc(item.snippet)}</p><footer><span>${esc(origin)}</span><span>${esc(when)}</span><span>${item.engagement?`${item.engagement} engagement`:""}</span></footer></article>`;
-  }).join("") : `<div class="empty">No source items returned. The technical model can still run, but alternative-data contribution is zero.</div>`;
+    const assigned = item.market_session ? item.market_session : "Not exposed";
+    const usage = item.model_usage || (item.kind === "news" ? "Historical feature input" : "Inference only");
+    return `<article class="evidence-row">
+      <div class="evidence-meta"><strong>${esc(origin)}</strong><span>${esc(item.kind.replaceAll('_',' '))}</span><span>${esc(when)}</span></div>
+      <div class="evidence-content"><a href="${esc(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a><p>${esc(item.snippet)}</p></div>
+      <div class="evidence-stats"><span>Sentiment ${item.sentiment>=0?"+":""}${item.sentiment.toFixed(3)}</span><span>Relevance ${item.relevance.toFixed(2)}</span><span>${item.engagement?`${item.engagement} engagement`:"No engagement value"}</span><span>Market session ${esc(assigned)}</span><span>${esc(usage)}</span></div>
+    </article>`;
+  }).join("") : `<p class="empty-copy">No source items returned. The technical model can still run, but alternative-data contribution is zero.</p>`;
   $("liveDisclaimer").textContent=result.disclaimer;
+}
+
+function showLogin(message="Authentication is required to use the application API.") {
+  const dialog=$("loginDialog") as HTMLDialogElement;
+  $("loginError").hidden=true;
+  $("loginHint").textContent = currentHealth?.environment === "development"
+    ? "Development mode detected. Use AUTH_USERNAME and AUTH_PASSWORD from your local .env configuration."
+    : message;
+  const user=$("loginUser") as HTMLInputElement;
+  if (!user.value) user.value=storedUsername();
+  if (!dialog.open) dialog.showModal();
+}
+
+async function ensureAppData(promptForAuth=true) {
+  if (appDataReady) return true;
+  try {
+    const models=await api.models();
+    const ticker=$("ticker") as HTMLSelectElement;
+    ticker.innerHTML=models.tickers.map(t=>`<option>${esc(t)}</option>`).join("");
+    currentTicker=ticker.value || "AAPL";
+    appDataReady=true;
+    await refreshExplorer();
+    return true;
+  } catch(e) {
+    if(e instanceof AuthError) {
+      if (promptForAuth) { showLogin(); return false; }
+      throw e;
+    }
+    status("error",(e as Error).message);
+    return false;
+  }
 }
 
 async function runLiveAnalysis() {
   const query=($("liveQuery") as HTMLInputElement).value.trim();
   if(!query) return;
   const btn=$("liveAnalyzeButton") as HTMLButtonElement;
-  btn.disabled=true; btn.textContent="Collecting evidence…";
+  btn.disabled=true;
+  btn.textContent="Analyzing";
   $("liveError").hidden=true;
-  status("busy",`Resolving ${query} + collecting live evidence…`);
+  $("analysisProgress").hidden=false;
+  status("busy",`Running live analysis for ${query}`);
   try {
     const result=await api.liveAnalyze(query,liveHorizon,($("includeComments") as HTMLInputElement).checked);
     renderLive(result);
     status("ok",`${result.ticker} live intelligence · ${result.evidence.news_count+result.evidence.reddit_post_count+result.evidence.reddit_comment_count} evidence items`);
   } catch(e) {
-    const message=(e as Error).message;
-    $("liveError").textContent=message;
-    $("liveError").hidden=false;
-    status("error",message);
-  } finally { btn.disabled=false; btn.textContent="Analyze stock"; }
+    if(e instanceof AuthError) {
+      showLogin("Sign in before running live analysis.");
+    } else {
+      const message=(e as Error).message;
+      $("liveError").innerHTML=`<strong>Live analysis could not complete.</strong><p>${esc(message)}</p><p>Cached analyses and the Offline Lab may remain available.</p>`;
+      $("liveError").hidden=false;
+      status("error",message);
+    }
+  } finally {
+    $("analysisProgress").hidden=true;
+    btn.disabled=false;
+    btn.textContent="Analyze stock";
+  }
 }
 
 async function runBacktest() {
-  const btn = $("backtestButton") as HTMLButtonElement; btn.disabled=true; btn.textContent="Running…";
+  const btn = $("backtestButton") as HTMLButtonElement;
+  btn.disabled=true;
+  btn.textContent="Running";
   try {
     const r = await api.backtest(currentTicker,currentHorizon);
-    const keys:[string,string][]=[["total_return_pct","Return"],["cagr_pct","CAGR"],["sharpe_ratio","Sharpe"],["max_drawdown_pct","Max drawdown"],["win_rate_pct","Win rate"]];
+    const keys:[string,string][]=[["total_return_pct","Return"],["cagr_pct","CAGR"],["sharpe_ratio","Sharpe"],["max_drawdown_pct","Maximum drawdown"],["win_rate_pct","Win rate"]];
     $("backtestMetrics").innerHTML=keys.map(([k,label])=>metric(label,k.includes("pct")?`${Number(r.stats[k]||0).toFixed(2)}%`:Number(r.stats[k]||0).toFixed(3))).join("");
     lineChart($("equityChart") as unknown as SVGSVGElement,[{values:r.equity_curve.map(x=>x.equity),className:"primary"}]);
-    $("backtestWarning").textContent=r.warnings.join(" ");
+    $("backtestWarning").textContent=[...r.warnings,"Historical simulation does not imply future performance."].filter(Boolean).join(" ");
     ($("exportButton") as HTMLButtonElement).disabled=false;
-  } finally { btn.disabled=false; btn.textContent="Run walk-forward"; }
+  } catch(e) {
+    if(e instanceof AuthError) showLogin(); else status("error",(e as Error).message);
+  } finally {
+    btn.disabled=false;
+    btn.textContent="Run walk-forward";
+  }
 }
 
 async function runExperiment() {
@@ -150,55 +285,145 @@ async function runExperiment() {
   if (!selected.length) return;
   const commission = Number(($("commission") as HTMLInputElement).value);
   const slippage = Number(($("slippage") as HTMLInputElement).value);
-  const btn=$("experimentButton") as HTMLButtonElement; btn.disabled=true; btn.textContent="Evaluating…";
+  const btn=$("experimentButton") as HTMLButtonElement;
+  btn.disabled=true;
+  btn.textContent="Evaluating";
   try {
     const r:ExperimentResult=await api.experiment(currentTicker,currentHorizon,selected,commission,slippage);
-    $("experimentTable").innerHTML = `<table><thead><tr><th>Model</th><th>Type</th><th>Return</th><th>Sharpe</th><th>Max DD</th><th>Win rate</th><th>Trades</th></tr></thead><tbody>${r.comparisons.map(c=>`<tr><td><strong>${esc(modelLabel(c.model))}</strong></td><td><span class="badge ${c.kind==='machine_learning'?'ai':''}">${esc(c.kind.replaceAll('_',' '))}</span></td><td>${Number(c.stats.total_return_pct||0).toFixed(2)}%</td><td>${Number(c.stats.sharpe_ratio||0).toFixed(3)}</td><td>${Number(c.stats.max_drawdown_pct||0).toFixed(2)}%</td><td>${Number(c.stats.win_rate_pct||0).toFixed(1)}%</td><td>${c.trades}</td></tr>`).join("")}</tbody></table>`;
+    $("experimentTable").innerHTML = `<table><thead><tr><th>Model</th><th>Type</th><th>Return</th><th>Sharpe</th><th>Maximum drawdown</th><th>Win rate</th><th>Trades</th></tr></thead><tbody>${r.comparisons.map(c=>`<tr><td><strong>${esc(modelLabel(c.model))}</strong></td><td><span class="badge">${esc(c.kind.replaceAll('_',' '))}</span></td><td>${Number(c.stats.total_return_pct||0).toFixed(2)}%</td><td>${Number(c.stats.sharpe_ratio||0).toFixed(3)}</td><td>${Number(c.stats.max_drawdown_pct||0).toFixed(2)}%</td><td>${Number(c.stats.win_rate_pct||0).toFixed(1)}%</td><td>${c.trades}</td></tr>`).join("")}</tbody></table>`;
     lineChart($("experimentChart") as unknown as SVGSVGElement,r.comparisons.map((c,i)=>({values:c.equity_curve.map(x=>x.equity),className:`series-${i}`})));
     $("experimentLegend").innerHTML=r.comparisons.map((c,i)=>`<span><i class="series-${i}"></i>${esc(modelLabel(c.model))}</span>`).join("");
-    $("experimentNote").textContent=`${r.methodology}. Commission ${r.costs.commission_bps} bps + slippage ${r.costs.slippage_bps} bps. ${r.warning||""}`;
-  } finally { btn.disabled=false; btn.textContent="Run comparison"; }
-}
-
-async function refreshSystem() {
-  const s=await api.system();
-  $("systemMetrics").innerHTML=metric("API version",s.version)+metric("Uptime",`${Math.round(s.uptime_seconds)}s`)+metric("Requests",String(s.requests_total))+metric("Avg latency",`${s.average_http_latency_ms.toFixed(2)} ms`)+metric("Cache hit",`${(s.prediction_cache_hit_rate*100).toFixed(1)}%`)+metric("Models",String(s.models_loaded))+metric("Live intel",s.live_intelligence_configured?"READY":"OFF")+metric("Reddit",s.reddit_configured?"READY":"OFF");
-  $("architecture").innerHTML=s.architecture.map((x,i)=>`<div class="arch-node"><small>${String(i+1).padStart(2,"0")}</small><strong>${esc(x)}</strong></div>`).join("<span class=\"arrow\">→</span>");
-  $("capabilities").innerHTML=s.capabilities.map(x=>`<li>${esc(x)}</li>`).join("");
-}
-
-function bindNavigation() {
-  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(btn=>btn.addEventListener("click",async()=>{
-    document.querySelectorAll("[data-view]").forEach(x=>x.classList.remove("active")); btn.classList.add("active");
-    document.querySelectorAll<HTMLElement>(".view").forEach(v=>v.hidden=true); $(String(btn.dataset.view)).hidden=false;
-    if(btn.dataset.view==="systemView") await refreshSystem();
-  }));
-}
-
-async function exportCsv(){ const {url,token}=await api.equityCsvUrl(currentTicker,currentHorizon); const res=await fetch(url,{headers:{Authorization:`Bearer ${token}`}}); const blob=await res.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${currentTicker}_${currentHorizon}_equity.csv`; a.click(); URL.revokeObjectURL(a.href); }
-
-async function boot() {
-  bindNavigation();
-  try {
-    const [health,models]=await Promise.all([api.health(),api.models()]);
-    liveConfigured=health.live_intelligence_configured; redditConfigured=health.reddit_configured;
-    const ticker=$("ticker") as HTMLSelectElement; ticker.innerHTML=models.tickers.map(t=>`<option>${esc(t)}</option>`).join(""); currentTicker=ticker.value;
-    $("releaseMeta").textContent=`v${health.version} · ${health.model_count} persisted artefacts · ${health.cache_backend} cache`;
-    $("providerState").textContent=liveConfigured?`LIVE READY · click Analyze · free-tier caching enabled${redditConfigured?" · Reddit ready":" · Reddit optional"}`:"LIVE KEYS NOT CONFIGURED · offline lab remains available";
-    $("providerState").className=liveConfigured?"provider-state ready":"provider-state";
-    status("ok",liveConfigured?"live intelligence ready · no provider calls made yet":"offline research mode");
-    // Deliberately do NOT run a live analysis during boot. Free-tier provider
-    // quotas should only be consumed after the user explicitly clicks Analyze.
-    await refreshExplorer();
+    $("experimentNote").textContent=`${r.methodology}. Commission ${r.costs.commission_bps} bps plus slippage ${r.costs.slippage_bps} bps. ${r.warning||""}`;
   } catch(e) {
-    if(e instanceof AuthError) ($("loginDialog") as HTMLDialogElement).showModal(); else status("error",(e as Error).message);
+    if(e instanceof AuthError) showLogin(); else status("error",(e as Error).message);
+  } finally {
+    btn.disabled=false;
+    btn.textContent="Run comparison";
   }
 }
 
-$("ticker").addEventListener("change",async e=>{currentTicker=(e.target as HTMLSelectElement).value; await refreshExplorer();});
-$("horizon").addEventListener("change",async e=>{currentHorizon=(e.target as HTMLSelectElement).value as Horizon; await refreshExplorer();});
-$("liveHorizon").addEventListener("change",e=>{liveHorizon=(e.target as HTMLSelectElement).value as Horizon;});
-$("refreshButton").addEventListener("click",refreshExplorer); $("backtestButton").addEventListener("click",runBacktest); $("experimentButton").addEventListener("click",runExperiment); $("exportButton").addEventListener("click",exportCsv);
-$("liveForm").addEventListener("submit",async e=>{e.preventDefault();await runLiveAnalysis();});
-$("loginForm").addEventListener("submit",async e=>{e.preventDefault();setCredentials(($('loginUser') as HTMLInputElement).value,($('loginPass') as HTMLInputElement).value);($('loginDialog') as HTMLDialogElement).close();await boot();});
-boot();
+async function refreshSystem() {
+  try {
+    const s=await api.system();
+    $("systemMetrics").innerHTML=[
+      metric("API version",s.version),
+      metric("Uptime",`${Math.round(s.uptime_seconds)} s`),
+      metric("Requests",String(s.requests_total)),
+      metric("Average latency",`${s.average_http_latency_ms.toFixed(2)} ms`),
+      metric("Prediction cache hit",`${(s.prediction_cache_hit_rate*100).toFixed(1)}%`),
+      metric("Models loaded",String(s.models_loaded)),
+      metric("Alpha Vantage",s.live_intelligence_configured?"Ready":"Not configured"),
+      metric("Reddit",s.reddit_configured?"Ready":"Not configured"),
+    ].join("");
+    $("architecture").innerHTML=s.architecture.map((x,i)=>`<li><span>${String(i+1).padStart(2,"0")}</span><strong>${esc(x)}</strong></li>`).join("");
+    $("capabilities").innerHTML=s.capabilities.map((x,i)=>`<div class="capability-row"><span>${String(i+1).padStart(2,"0")}</span><strong>${esc(x)}</strong></div>`).join("");
+  } catch(e) {
+    if(e instanceof AuthError) showLogin(); else status("error",(e as Error).message);
+  }
+}
+
+async function exportCsv(){
+  try {
+    const {url,token}=await api.equityCsvUrl(currentTicker,currentHorizon);
+    const res=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    const blob=await res.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`${currentTicker}_${currentHorizon}_equity.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) {
+    if(e instanceof AuthError) showLogin(); else status("error",(e as Error).message);
+  }
+}
+
+function switchAppView(viewId:string) {
+  document.querySelectorAll<HTMLElement>(".view").forEach(v=>v.hidden=true);
+  const target=document.getElementById(viewId);
+  if (target) target.hidden=false;
+  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(x=>x.classList.toggle("active",x.dataset.view===viewId));
+  pendingView=viewId;
+  if(viewId==="systemView") void refreshSystem();
+}
+
+function showPublicPage(pageId:string) {
+  $("appShell").hidden=true;
+  $("publicShell").hidden=false;
+  $("siteHeader").hidden=false;
+  $("siteFooter").hidden=false;
+  document.querySelectorAll<HTMLElement>(".public-view").forEach(page=>page.hidden=page.id!==pageId);
+  document.querySelectorAll<HTMLButtonElement>("[data-public-view]").forEach(btn=>btn.classList.toggle("active",btn.dataset.publicView===pageId));
+  window.scrollTo({top:0,behavior:"auto"});
+}
+
+async function openApp(viewId="liveView") {
+  $("publicShell").hidden=true;
+  $("siteHeader").hidden=true;
+  $("siteFooter").hidden=true;
+  $("appShell").hidden=false;
+  switchAppView(viewId);
+  window.scrollTo({top:0,behavior:"auto"});
+  await ensureAppData();
+}
+
+function bindNavigation() {
+  document.querySelectorAll<HTMLButtonElement>("[data-public-view]").forEach(btn=>btn.addEventListener("click",()=>showPublicPage(String(btn.dataset.publicView))));
+  document.querySelectorAll<HTMLElement>("[data-open-app]").forEach(el=>el.addEventListener("click",()=>void openApp((el as HTMLElement).dataset.appView || "liveView")));
+  document.querySelectorAll<HTMLButtonElement>("[data-close-app]").forEach(btn=>btn.addEventListener("click",()=>showPublicPage("productPage")));
+  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(btn=>btn.addEventListener("click",()=>switchAppView(String(btn.dataset.view))));
+  document.querySelectorAll<HTMLButtonElement>("[data-reference]").forEach(btn=>btn.addEventListener("click",()=>showPublicPage(String(btn.dataset.reference))));
+}
+
+function bindControls() {
+  $("ticker").addEventListener("change",async e=>{currentTicker=(e.target as HTMLSelectElement).value; await refreshExplorer();});
+  $("horizon").addEventListener("change",async e=>{currentHorizon=(e.target as HTMLSelectElement).value as Horizon; await refreshExplorer();});
+  $("liveHorizon").addEventListener("change",e=>{liveHorizon=(e.target as HTMLSelectElement).value as Horizon;});
+  $("refreshButton").addEventListener("click",()=>void refreshExplorer());
+  $("backtestButton").addEventListener("click",()=>void runBacktest());
+  $("experimentButton").addEventListener("click",()=>void runExperiment());
+  $("exportButton").addEventListener("click",()=>void exportCsv());
+  $("liveForm").addEventListener("submit",async e=>{e.preventDefault();await runLiveAnalysis();});
+  $("signOutButton").addEventListener("click",()=>{clearCredentials();appDataReady=false;status("ok","Signed out");showPublicPage("productPage");});
+  $("loginCancel").addEventListener("click",()=>($("loginDialog") as HTMLDialogElement).close());
+  $("loginForm").addEventListener("submit",async e=>{
+    e.preventDefault();
+    const user=($("loginUser") as HTMLInputElement).value;
+    const pass=($("loginPass") as HTMLInputElement).value;
+    setCredentials(user,pass);
+    try {
+      appDataReady=false;
+      const ok=await ensureAppData(false);
+      if(ok){
+        $("loginError").hidden=true;
+        ($("loginPass") as HTMLInputElement).value="";
+        ($("loginDialog") as HTMLDialogElement).close();
+        switchAppView(pendingView);
+      }
+    } catch(err) {
+      $("loginError").textContent=(err as Error).message;
+      $("loginError").hidden=false;
+    }
+  });
+}
+
+async function boot() {
+  bindNavigation();
+  bindControls();
+  try {
+    currentHealth=await api.health();
+    liveConfigured=currentHealth.live_intelligence_configured;
+    redditConfigured=currentHealth.reddit_configured;
+    $("releaseMeta").textContent=`v${currentHealth.version} · ${currentHealth.model_count} model artifacts · ${currentHealth.cache_backend} cache`;
+    $("sidebarVersion").textContent=`v${currentHealth.version}`;
+    $("providerState").textContent=liveConfigured?`Live provider configured${redditConfigured?" · Reddit configured":" · Reddit optional"}`:"Live provider not configured · Offline Lab available";
+    $("alphaState").textContent=liveConfigured?"Ready":"Not configured";
+    $("redditState").textContent=redditConfigured?"Ready":"Not configured";
+    status("ok",liveConfigured?"Live intelligence ready. No provider request has been made.":"Offline research mode. Live provider not configured.");
+  } catch(e) {
+    status("error",`Runtime unavailable: ${(e as Error).message}`);
+    $("alphaState").textContent="Unavailable";
+    $("redditState").textContent="Unavailable";
+  }
+}
+
+void boot();

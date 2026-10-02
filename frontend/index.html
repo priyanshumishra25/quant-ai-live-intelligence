@@ -3,113 +3,407 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
-  <meta name="description" content="Quant AI — live stock intelligence, market trends, news, Reddit sentiment and auditable ML forecasts." />
-  <title>Quant AI · Live Intelligence</title>
+  <meta name="color-scheme" content="light" />
+  <meta name="description" content="Quant AI combines historical market data, financial news and public discussion with transparent temporal validation and explainable forecasting." />
+  <meta property="og:title" content="Quant AI | Explainable Market Intelligence" />
+  <meta property="og:description" content="Market intelligence with visible assumptions, source evidence, validation and model diagnostics." />
+  <title>Quant AI | Explainable Market Intelligence</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><div class="mark">Q</div><div><strong>QUANT AI</strong><span>LIVE INTELLIGENCE</span></div></div>
-    <nav>
-      <button data-view="liveView" class="active">Live Intelligence</button>
-      <button data-view="explorerView">Offline Lab</button>
-      <button data-view="experimentView">Experiment Lab</button>
-      <button data-view="systemView">System</button>
+  <a class="skip-link" href="#mainContent">Skip to content</a>
+
+  <header id="siteHeader" class="site-header">
+    <button class="wordmark wordmark-button" type="button" data-public-view="productPage" aria-label="Quant AI home">
+      <span class="wordmark-mark" aria-hidden="true">Q</span>
+      <span><strong>QUANT AI</strong><small>MARKET INTELLIGENCE</small></span>
+    </button>
+    <nav class="site-nav" aria-label="Public navigation">
+      <button type="button" data-public-view="productPage" class="active">Product</button>
+      <button type="button" data-public-view="methodologyPage">Methodology</button>
+      <button type="button" data-public-view="modelCardPage">Model Card</button>
+      <button type="button" data-public-view="securityPage">Security</button>
     </nav>
-    <div id="status" class="status busy"><i></i><span id="statusText">Connecting…</span></div>
+    <div class="site-actions">
+      <a href="https://github.com/priyanshumishra25/quant-ai-live-intelligence" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <button class="button primary" type="button" data-open-app>Open application</button>
+    </div>
   </header>
-  <div class="fixture-banner">LIVE MODE USES DOCUMENTED PROVIDER APIs · OFFLINE LAB REMAINS FULLY REPRODUCIBLE · EXPERIMENTAL OUTPUT, NOT INVESTMENT ADVICE</div>
 
-  <main>
-    <section class="intro">
-      <div>
-        <span class="kicker">SOFTWARE + AI ENGINEERING PORTFOLIO</span>
-        <h1>One stock query.<br/>A complete evidence trail.</h1>
-        <p>Resolve any supported listed instrument, pull historical trends and market news, validate an on-demand price+news model, then apply current Reddit discussion only as a bounded inference-time signal. Every forecast exposes its evidence and uncertainty.</p>
-      </div>
-      <div class="release-card"><small>RUNNING RELEASE</small><b id="releaseMeta">Loading…</b><span id="providerState" class="provider-state">Checking live providers…</span></div>
-    </section>
+  <main id="mainContent">
+    <div id="publicShell">
+      <section id="productPage" class="public-view public-page">
+        <div class="public-wrap">
+          <section class="hero-public" aria-labelledby="productTitle">
+            <div class="hero-copy">
+              <p class="eyebrow">MARKET INTELLIGENCE AND MODEL EVALUATION</p>
+              <h1 id="productTitle">Market intelligence with visible assumptions.</h1>
+              <p class="lede">Quant AI combines price history, financial news and optional public discussion into an auditable forecasting workflow. Predictions include their evidence, validation sample, uncertainty estimate and model diagnostics.</p>
+              <div class="hero-actions">
+                <button class="button primary" type="button" data-open-app>Open live analysis</button>
+                <button class="button secondary" type="button" data-public-view="methodologyPage">Read methodology</button>
+              </div>
+              <dl class="hero-facts" aria-label="Product characteristics">
+                <div><dt>Live data</dt><dd>Provider backed when configured</dd></div>
+                <div><dt>Validation</dt><dd>Purged chronological holdout</dd></div>
+                <div><dt>Research path</dt><dd>Deterministic offline fixtures</dd></div>
+              </dl>
+            </div>
 
-    <section id="liveView" class="view">
-      <form id="liveForm" class="live-search panel">
-        <div>
-          <span class="kicker">LIVE STOCK INTELLIGENCE</span>
-          <h2>Analyze any company or ticker</h2>
-          <p>Examples: <code>Apple</code>, <code>AAPL</code>, <code>Tesla</code>, <code>Commonwealth Bank</code>. No live provider request is made until you click <b>Analyze stock</b>.</p>
+            <section class="product-preview" aria-label="Real product snapshot">
+              <header class="section-header compact-header">
+                <div>
+                  <p class="eyebrow">BUNDLED DETERMINISTIC FIXTURE</p>
+                  <h2>Actual AAPL 5-day model output</h2>
+                </div>
+                <span class="status-word neutral">Offline fixture</span>
+              </header>
+              <div class="preview-identity">
+                <div>
+                  <span class="mono label">AAPL</span>
+                  <strong id="proofPrice">$235.88</strong>
+                </div>
+                <div class="preview-signal">
+                  <span class="label">Forecast return</span>
+                  <strong id="proofReturn">+0.51%</strong>
+                </div>
+              </div>
+              <dl class="definition-table preview-table">
+                <div><dt>Direction</dt><dd id="proofSignal">Neutral</dd></div>
+                <div><dt>Forecast price</dt><dd id="proofTarget">$237.08</dd></div>
+                <div><dt>95% interval</dt><dd id="proofInterval">$223.96 to $250.21</dd></div>
+                <div><dt>Model</dt><dd>Ridge linear return</dd></div>
+                <div><dt>Training rows</dt><dd id="proofRows">876</dd></div>
+                <div><dt>Data</dt><dd>Bundled synthetic research fixture</dd></div>
+              </dl>
+              <p class="fine-print">This snapshot is generated from the repository's bundled deterministic fixture and persisted model artifact. It is not a fabricated marketing example.</p>
+            </section>
+          </section>
+
+          <section class="public-section" aria-labelledby="analysisContainsTitle">
+            <div class="section-intro">
+              <p class="eyebrow">PRODUCT PROOF</p>
+              <h2 id="analysisContainsTitle">What an analysis contains</h2>
+              <p>Results are presented alongside the evidence and validation context needed to interpret them.</p>
+            </div>
+            <div class="two-column-evidence">
+              <dl class="definition-table">
+                <div><dt>Forecast</dt><dd>Return, price and uncertainty interval</dd></div>
+                <div><dt>Signal</dt><dd>Bullish, neutral or bearish heuristic score</dd></div>
+                <div><dt>Evidence</dt><dd>Attributed market news and optional Reddit discussion</dd></div>
+                <div><dt>Validation</dt><dd>Holdout size, purge gap and reliability label</dd></div>
+                <div><dt>Diagnostics</dt><dd>Selected regularisation, MAE and directional accuracy</dd></div>
+              </dl>
+              <div class="method-sample">
+                <p class="label">Typical live pipeline</p>
+                <ol class="numbered-process compact-process">
+                  <li><span>01</span><strong>Resolve the listed instrument</strong></li>
+                  <li><span>02</span><strong>Load historical market observations</strong></li>
+                  <li><span>03</span><strong>Align news to knowable trading sessions</strong></li>
+                  <li><span>04</span><strong>Validate with a purged chronological split</strong></li>
+                  <li><span>05</span><strong>Return forecast, uncertainty and evidence</strong></li>
+                </ol>
+              </div>
+            </div>
+          </section>
+
+          <section class="public-section" aria-labelledby="capabilitiesTitle">
+            <div class="section-intro">
+              <p class="eyebrow">CAPABILITIES</p>
+              <h2 id="capabilitiesTitle">One product, four operating views</h2>
+            </div>
+            <div class="table-wrap public-table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Area</th><th>Purpose</th><th>Data source</th></tr></thead>
+                <tbody>
+                  <tr><td><button class="text-button" type="button" data-open-app data-app-view="liveView">Live Intelligence</button></td><td>Current market analysis with auditable evidence</td><td>Alpha Vantage, Reddit when configured</td></tr>
+                  <tr><td><button class="text-button" type="button" data-open-app data-app-view="explorerView">Offline Lab</button></td><td>Deterministic inference and backtesting</td><td>Bundled fixture data</td></tr>
+                  <tr><td><button class="text-button" type="button" data-open-app data-app-view="experimentView">Experiment Lab</button></td><td>Compare models under identical evaluation conditions</td><td>Local experiment dataset</td></tr>
+                  <tr><td><button class="text-button" type="button" data-open-app data-app-view="systemView">System</button></td><td>Inspect providers, cache, health and release state</td><td>Runtime telemetry</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="public-section" aria-labelledby="limitationsTitle">
+            <div class="section-intro">
+              <p class="eyebrow">KNOWN LIMITATIONS</p>
+              <h2 id="limitationsTitle">Constraints are part of the result</h2>
+              <p>Quant AI exposes limitations instead of compressing them into a single confidence percentage.</p>
+            </div>
+            <div class="table-wrap public-table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Limitation</th><th>Consequence</th></tr></thead>
+                <tbody>
+                  <tr><td>Free-tier market history is limited</td><td>Long-horizon validation can contain very few independent observations.</td></tr>
+                  <tr><td>News sentiment is provider-derived</td><td>Sentiment quality depends on source coverage and timestamps.</td></tr>
+                  <tr><td>Reddit signal is bounded</td><td>Public discussion cannot dominate the historical price and news model.</td></tr>
+                  <tr><td>Signal scores are heuristic</td><td>They are not calibrated probabilities of market outcomes.</td></tr>
+                  <tr><td>Research software</td><td>Outputs are experimental and are not investment advice.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-        <label>Company / ticker<input id="liveQuery" value="Apple" autocomplete="off" placeholder="Type a stock name or ticker" /></label>
-        <label>Forecast horizon<select id="liveHorizon"><option>1d</option><option selected>5d</option><option>20d</option></select></label>
-        <label class="check live-check"><input id="includeComments" type="checkbox" checked/><span><b>Reddit comments</b><small>top comments from engaged matched threads</small></span></label>
-        <button id="liveAnalyzeButton" type="submit">Analyze stock</button>
-      </form>
-      <p id="liveError" class="error-note" hidden></p>
+      </section>
 
-      <section class="hero panel live-hero">
-        <div>
-          <span class="kicker">AUDITABLE FUSION FORECAST</span>
-          <div class="ticker-line"><h2 id="liveCompany">Awaiting analysis</h2><span id="liveSignal" class="signal">—</span></div>
-          <div class="price"><b id="livePrice">—</b><span id="livePredReturn">—</span></div>
-          <p id="liveMeta">Historical price + news → validated model · current Reddit → bounded inference overlay</p>
+      <section id="methodologyPage" class="public-view public-page" hidden>
+        <div class="prose-wrap">
+          <header class="document-header">
+            <p class="eyebrow">METHODOLOGY</p>
+            <h1>From evidence to forecast</h1>
+            <p>Each live analysis follows an explicit temporal pipeline. The validation design is intended to avoid future information leaking into the holdout.</p>
+          </header>
+          <ol class="numbered-process methodology-process">
+            <li><span>01</span><div><h2>Instrument resolution</h2><p>An uppercase ticker can be used directly. Company names are resolved through the configured market-data provider.</p></div></li>
+            <li><span>02</span><div><h2>Market history</h2><p>Daily OHLCV history is retrieved and converted into return, moving-average, momentum and volatility features.</p></div></li>
+            <li><span>03</span><div><h2>News collection</h2><p>Market news is collected with provider sentiment and relevance metadata. Invalid timestamps are discarded rather than replaced.</p></div></li>
+            <li><span>04</span><div><h2>Trading-session alignment</h2><p>News is converted to America/New_York time. Items published at or after the 4:00 PM market close are assigned to the next available market session.</p></div></li>
+            <li><span>05</span><div><h2>Feature construction</h2><p>Technical and news features are aligned on the market-date index. Evidence outside the available history window is excluded.</p></div></li>
+            <li><span>06</span><div><h2>Target definition</h2><p>The model predicts forward returns for 1, 5 or 20 trading-day horizons.</p></div></li>
+            <li><span>07</span><div><h2>Purged chronological validation</h2><p>The holdout is chronological. A horizon-length purge gap separates the training set from validation so training targets cannot overlap the holdout period.</p></div></li>
+            <li><span>08</span><div><h2>Regularisation selection</h2><p>Ridge alpha is selected from training data only using generalized cross-validation over a declared candidate grid.</p></div></li>
+            <li><span>09</span><div><h2>Holdout evaluation</h2><p>MAE, directional accuracy, correlation, residual volatility and approximate non-overlapping observations are reported as diagnostics.</p></div></li>
+            <li><span>10</span><div><h2>Final refit</h2><p>After validation, the selected model is refit on all eligible historical rows to produce the current forecast.</p></div></li>
+            <li><span>11</span><div><h2>Uncertainty</h2><p>The displayed interval is based on purged holdout residual volatility, not final-fit in-sample residuals.</p></div></li>
+            <li><span>12</span><div><h2>Public-discussion overlay</h2><p>When Reddit is configured, current discussion is processed at inference time only. Its contribution is bounded to a fraction of holdout residual volatility and does not change fitted coefficients.</p></div></li>
+            <li><span>13</span><div><h2>Signal scores</h2><p>Bullish, neutral and bearish values are heuristic directional scores. They are explicitly not calibrated probabilities.</p></div></li>
+            <li><span>14</span><div><h2>Limitations</h2><p>Compact free-tier history can make validation statistically weak, especially at a 20-day horizon. The interface exposes that reliability limitation directly.</p></div></li>
+          </ol>
         </div>
-        <div id="livePredictionMetrics" class="metrics"></div>
       </section>
 
-      <div class="grid two">
-        <section class="panel"><header><span>Historical trend</span><small>up to 260 recent closes shown</small></header><svg id="livePriceChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg><div id="liveTrendMetrics" class="metrics compact"></div></section>
-        <section class="panel"><header><span>Source sentiment</span><small>dated and engagement-weighted</small></header><div id="liveSourceSummary" class="source-summary-grid"></div><p id="sourceErrors" class="note"></p></section>
-        <section class="panel"><header><span>Signal score decomposition</span><small>heuristic scores · explicitly not probabilities</small></header><div id="liveProbabilities" class="probabilities"></div><p id="liveDisclaimer" class="note"></p></section>
-        <section class="panel"><header><span>Why this forecast?</span><small>absolute contribution by source family</small></header><div id="contributionMix" class="features"></div><div id="liveDrivers" class="movers"></div></section>
-      </div>
-
-      <section class="panel"><header><span>Model validation</span><small>purged chronological holdout before final refit</small></header><div id="liveModelMetrics" class="metrics"></div><p id="liveMethodology" class="note"></p></section>
-
-      <section class="panel"><header><span>Evidence stream</span><small>source-attributed items used to construct the live state</small></header><div id="evidenceList" class="evidence-grid"><div class="empty">Configure provider keys and run an analysis to populate live evidence.</div></div></section>
-    </section>
-
-    <section id="explorerView" class="view" hidden>
-      <section class="workspace-controls panel">
-        <div class="offline-label"><span class="kicker">REPRODUCIBLE OFFLINE PATH</span><b>Persisted fixture model</b></div>
-        <label>Instrument<select id="ticker"></select></label>
-        <label>Horizon<select id="horizon"><option>1d</option><option selected>5d</option><option>20d</option></select></label>
-        <button id="refreshButton">Refresh inference</button>
-        <button id="backtestButton" class="secondary">Run walk-forward</button>
-        <button id="exportButton" class="ghost" disabled>Export CSV</button>
+      <section id="modelCardPage" class="public-view public-page" hidden>
+        <div class="prose-wrap">
+          <header class="document-header">
+            <p class="eyebrow">MODEL CARD</p>
+            <h1>Model purpose, behaviour and limits</h1>
+            <p>Quant AI is research software for inspecting a forecasting workflow. It does not provide financial advice.</p>
+          </header>
+          <div class="document-sections">
+            <section><h2>Model purpose</h2><p>Estimate short-horizon forward returns from historical price features and market-news features, then expose the resulting forecast with validation diagnostics and source evidence.</p></section>
+            <section><h2>Intended use</h2><p>Software engineering demonstrations, ML evaluation, educational research, reproducible experimentation and inspection of temporal validation choices.</p></section>
+            <section><h2>Out-of-scope use</h2><p>Automated trading, portfolio allocation, execution, suitability decisions, personalized financial advice and claims of future profitability.</p></section>
+            <section><h2>Inputs</h2><p>Daily market history, provider-attributed financial news and optional current public Reddit discussion.</p></section>
+            <section><h2>Outputs</h2><p>Predicted return, predicted price, holdout-derived interval, directional signal score, source contribution mix, top drivers and validation diagnostics.</p></section>
+            <section><h2>Temporal leakage controls</h2><p>Chronological holdout, horizon-length purge gap and market-session news alignment are used to reduce look-ahead leakage.</p></section>
+            <section><h2>Hyperparameter selection</h2><p>Ridge alpha is chosen on training data only. The holdout is reserved for evaluation.</p></section>
+            <section><h2>Reddit handling</h2><p>Reddit content is not used to train persistent model weights. Current sentiment is processed as a bounded inference-time signal when authorized API access is configured.</p></section>
+            <section><h2>Failure modes</h2><p>Provider quotas, sparse news, small validation samples, regime changes, ambiguous ticker resolution and missing Reddit access can reduce usefulness.</p></section>
+            <section><h2>Interpretation</h2><p>Directional signal scores are heuristic indicators and are not calibrated probabilities of market outcomes or profit.</p></section>
+          </div>
+        </div>
       </section>
-      <section class="hero panel">
-        <div><span class="kicker">PERSISTED MODEL INFERENCE</span><div class="ticker-line"><h2 id="heroTicker">—</h2><span id="heroSignal" class="signal">—</span></div><div class="price"><b id="heroPrice">—</b><span id="heroReturn">—</span></div><p id="heroMeta">—</p></div>
-        <div id="predictionMetrics" class="metrics"></div>
+
+      <section id="securityPage" class="public-view public-page" hidden>
+        <div class="prose-wrap">
+          <header class="document-header">
+            <p class="eyebrow">SECURITY</p>
+            <h1>Security boundaries are explicit</h1>
+            <p>The public client contains no provider credentials. Secrets are injected into the backend environment and release checks reject tracked local environment files.</p>
+          </header>
+          <dl class="definition-table document-table">
+            <div><dt>Credential handling</dt><dd>Provider keys and JWT secrets stay server-side in environment configuration.</dd></div>
+            <div><dt>Authentication</dt><dd>The API uses bearer tokens. The browser does not persist the user's password.</dd></div>
+            <div><dt>Rate limiting</dt><dd>Backend request limits and provider pacing reduce accidental quota exhaustion.</dd></div>
+            <div><dt>External links</dt><dd>Evidence URLs are restricted to HTTP and HTTPS before rendering.</dd></div>
+            <div><dt>Release checks</dt><dd>The release script verifies required artifacts, rejects disconnected prototype paths and checks model artifact hashes.</dd></div>
+            <div><dt>Data retention</dt><dd>Provider evidence is cached for short operational windows. Reddit content is not stored as a persistent training corpus.</dd></div>
+            <div><dt>Production configuration</dt><dd>Known development credentials and default JWT secrets are rejected in staging and production.</dd></div>
+          </dl>
+          <p class="fine-print">For responsible disclosure, use the repository's security guidance before publishing vulnerability details.</p>
+        </div>
       </section>
-      <div class="grid two">
-        <section class="panel"><header><span>Price trace</span><small>bundled deterministic fixture</small></header><svg id="priceChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg></section>
-        <section class="panel"><header><span>Model explanation</span><small>normalised contribution</small></header><div id="featureList" class="features"></div><p id="explanation" class="note"></p></section>
-        <section class="panel"><header><span>Signal score decomposition</span><small>heuristic scores · not probabilities</small></header><div id="probabilities" class="probabilities"></div></section>
-        <section class="panel"><header><span>Market context</span><small>fixture-derived diagnostics</small></header><div id="marketMetrics" class="metrics compact"></div><div id="movers" class="movers"></div></section>
-      </div>
-      <section class="panel"><header><span>Walk-forward evaluation</span><small>refit model at each fold · cost aware</small></header><div id="backtestMetrics" class="metrics"></div><svg id="equityChart" class="chart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg><p id="backtestWarning" class="note"></p></section>
-    </section>
 
-    <section id="experimentView" class="view" hidden>
-      <div class="grid experiment-layout">
-        <section class="panel lab-controls"><header><span>Experiment configuration</span><small>same folds, same execution assumptions</small></header>
-          <div class="form-stack"><label>Models</label><label class="check"><input type="checkbox" name="experimentModel" value="ridge" checked/><span><b>Ridge ML</b><small>Walk-forward refitted feature model</small></span></label><label class="check"><input type="checkbox" name="experimentModel" value="momentum" checked/><span><b>Momentum</b><small>Transparent trend baseline</small></span></label><label class="check"><input type="checkbox" name="experimentModel" value="mean_reversion" checked/><span><b>Mean reversion</b><small>Transparent z-score baseline</small></span></label>
-          <div class="split"><label>Commission (bps)<input id="commission" type="number" value="10" min="0" max="100"/></label><label>Slippage (bps)<input id="slippage" type="number" value="5" min="0" max="100"/></label></div><button id="experimentButton">Run comparison</button></div>
-        </section>
-        <section class="panel"><header><span>Evaluation trace</span><small>out-of-sample portfolio equity</small></header><div id="experimentLegend" class="legend"></div><svg id="experimentChart" class="chart tall" viewBox="0 0 900 300" preserveAspectRatio="none"></svg></section>
-      </div>
-      <section class="panel"><header><span>Comparison table</span><small>AI model against interpretable baselines</small></header><div id="experimentTable" class="table-wrap"><div class="empty">Run a comparison to populate experiment results.</div></div><p id="experimentNote" class="note"></p></section>
-    </section>
+      <section id="privacyPage" class="public-view public-page" hidden>
+        <div class="prose-wrap legal-copy">
+          <header class="document-header"><p class="eyebrow">PRIVACY POLICY</p><h1>Privacy and data handling</h1><p>Last updated 2 October 2026.</p></header>
+          <section><h2>Information processed</h2><p>The application processes stock or company queries, authentication details needed to access the API, provider responses and operational request metadata.</p></section>
+          <section><h2>Market-data providers</h2><p>Live queries may be sent to configured third-party market-data and news providers. Their handling of those requests is governed by their own terms and privacy policies.</p></section>
+          <section><h2>Reddit data</h2><p>When configured, public Reddit posts and limited comments may be processed for the current analysis. Reddit content is not used to train persistent model weights or maintained as a persistent content corpus by this application.</p></section>
+          <section><h2>Authentication information</h2><p>The browser stores a short-lived access token in session storage. Passwords are kept in memory for the current page session and are not written to session storage by the redesigned client.</p></section>
+          <section><h2>Application logs</h2><p>The backend may record operational logs such as request timing, endpoint status and errors. Do not submit sensitive personal information as a stock query.</p></section>
+          <section><h2>Cookies and analytics</h2><p>The current frontend does not require advertising cookies or third-party analytics.</p></section>
+          <section><h2>Retention</h2><p>Live provider responses may be cached for configured operational time-to-live periods. Retention depends on the deployment environment and cache configuration.</p></section>
+          <section><h2>Contact and changes</h2><p>Questions and change history can be handled through the public repository. This policy should be reviewed if hosting, analytics or data providers change.</p></section>
+        </div>
+      </section>
 
-    <section id="systemView" class="view" hidden>
-      <section class="panel"><header><span>Runtime telemetry</span><small>operational health and request behaviour</small></header><div id="systemMetrics" class="metrics"></div></section>
-      <section class="panel"><header><span>Default architecture</span><small>live + reproducible paths share the same API</small></header><div id="architecture" class="architecture"></div></section>
-      <div class="grid two"><section class="panel"><header><span>Engineering capabilities</span><small>implemented, not aspirational</small></header><ul id="capabilities" class="capabilities"></ul></section><section class="panel"><header><span>Design principle</span><small>product judgement</small></header><div class="principle"><b>Live when useful. Reproducible by default.</b><p>The product isolates provider adapters from modelling and keeps deterministic fixtures for CI. Live evidence is attributed, cached briefly and allowed to degrade by source instead of making the whole request fail.</p></div></section></div>
-    </section>
+      <section id="termsPage" class="public-view public-page" hidden>
+        <div class="prose-wrap legal-copy">
+          <header class="document-header"><p class="eyebrow">TERMS OF USE</p><h1>Research software terms</h1><p>Last updated 2 October 2026.</p></header>
+          <section><h2>Research and educational purpose</h2><p>Quant AI is an experimental software and ML engineering project intended for research, education and demonstration.</p></section>
+          <section><h2>No investment advice</h2><p>Outputs are not financial, investment, legal, tax or trading advice. Do not treat forecasts or signal scores as recommendations to buy, sell or hold a security.</p></section>
+          <section><h2>No warranties</h2><p>The software and outputs are provided as-is. Data can be delayed, incomplete, unavailable or incorrect, and model behaviour can change across market regimes.</p></section>
+          <section><h2>Third-party services</h2><p>Live features depend on external providers. Their availability, quotas, data rights and terms are outside this project's control.</p></section>
+          <section><h2>User responsibilities</h2><p>Use the software lawfully, protect credentials, respect provider terms and independently verify information before making financial decisions.</p></section>
+          <section><h2>Intellectual property</h2><p>Repository source code is governed by the license included with the repository. Third-party data and services remain subject to their respective rights and terms.</p></section>
+          <section><h2>Limitation of liability</h2><p>To the extent permitted by law, the project author is not responsible for trading losses, provider outages, data errors or decisions made from experimental outputs.</p></section>
+          <section><h2>Changes</h2><p>These terms may change as the product, deployment model or provider integrations change.</p></section>
+        </div>
+      </section>
+    </div>
+
+    <div id="appShell" class="app-shell" hidden>
+      <aside class="app-sidebar" aria-label="Application navigation">
+        <div class="sidebar-brand">
+          <button class="wordmark wordmark-button" type="button" data-close-app aria-label="Return to product site">
+            <span class="wordmark-mark" aria-hidden="true">Q</span>
+            <span><strong>QUANT AI</strong><small>APPLICATION</small></span>
+          </button>
+        </div>
+        <nav class="sidebar-nav">
+          <p class="nav-label">ANALYSIS</p>
+          <button type="button" data-view="liveView" class="active">Live Intelligence</button>
+          <button type="button" data-view="explorerView">Offline Lab</button>
+          <button type="button" data-view="experimentView">Experiment Lab</button>
+          <p class="nav-label">PLATFORM</p>
+          <button type="button" data-view="systemView">System</button>
+          <p class="nav-label">REFERENCE</p>
+          <button type="button" data-reference="methodologyPage">Methodology</button>
+          <button type="button" data-reference="modelCardPage">Model Card</button>
+        </nav>
+        <div class="sidebar-meta">
+          <span id="sidebarVersion" class="mono">v3.0.2</span>
+          <a href="https://github.com/priyanshumishra25/quant-ai-live-intelligence" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <button id="signOutButton" class="text-button muted-button" type="button">Sign out</button>
+        </div>
+      </aside>
+
+      <div class="app-workspace">
+        <header class="app-topbar">
+          <div id="status" class="status busy" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="statusText">Checking runtime</span></div>
+          <div class="provider-strip" aria-label="Provider status">
+            <span>Alpha Vantage <strong id="alphaState">Checking</strong></span>
+            <span>Reddit <strong id="redditState">Checking</strong></span>
+          </div>
+          <button class="button secondary compact-button" type="button" data-close-app>Product site</button>
+        </header>
+
+        <div class="app-content">
+          <section id="liveView" class="view">
+            <header class="page-header">
+              <div><p class="eyebrow">ANALYSIS</p><h1>Live Intelligence</h1><p>Analyse a listed instrument using current market data and news. Public Reddit discussion may be included as a bounded inference-time signal when configured.</p></div>
+              <div class="release-block"><span class="label">Running release</span><strong id="releaseMeta">Loading</strong><span id="providerState">Checking providers</span></div>
+            </header>
+
+            <form id="liveForm" class="control-panel">
+              <label>Company or ticker<input id="liveQuery" value="AAPL" autocomplete="off" placeholder="AAPL or Apple" /></label>
+              <label>Forecast horizon<select id="liveHorizon"><option value="1d">1 trading day</option><option value="5d" selected>5 trading days</option><option value="20d">20 trading days</option></select></label>
+              <label class="checkbox-field"><input id="includeComments" type="checkbox" checked/><span><strong>Reddit comments</strong><small>Use limited top comments from matched public threads when Reddit is configured.</small></span></label>
+              <button id="liveAnalyzeButton" class="button primary" type="submit">Analyze stock</button>
+            </form>
+
+            <div id="analysisProgress" class="analysis-progress" hidden aria-live="polite">
+              <div><p class="label">ANALYSIS IN PROGRESS</p><strong>Running the live pipeline</strong><p>Instrument resolution, market history, news retrieval, feature preparation, validation, model fitting and evidence assembly are handled in one backend request.</p></div>
+              <ol class="pipeline-list" aria-label="Pipeline stages"><li>Resolve instrument</li><li>Load market history</li><li>Retrieve market news</li><li>Prepare features</li><li>Run validation</li><li>Fit final model</li><li>Prepare evidence</li></ol>
+              <div class="skeleton-layout" aria-hidden="true"><span class="skeleton wide"></span><span class="skeleton medium"></span><span class="skeleton chart-skeleton"></span><span class="skeleton wide"></span><span class="skeleton wide"></span></div>
+            </div>
+
+            <div id="liveError" class="error-panel" hidden role="alert"></div>
+
+            <div id="liveResult">
+              <section class="result-identity section-block">
+                <div><p class="eyebrow">CURRENT ANALYSIS</p><div class="identity-line"><h2 id="liveCompany">No analysis yet</h2><span id="liveSignal" class="signal-label">Not available</span></div><div class="price-line"><strong id="livePrice">No price</strong><span id="livePredReturn">No forecast</span></div><p id="liveMeta">Enter a company or ticker above. No provider requests are made until you select Analyze stock.</p></div>
+              </section>
+
+              <section class="section-block" aria-labelledby="forecastSummaryTitle">
+                <header class="section-header"><div><p class="eyebrow">RESULT</p><h2 id="forecastSummaryTitle">Forecast summary</h2></div><span class="section-note">Experimental research output</span></header>
+                <div id="livePredictionMetrics" class="metrics-list empty-metrics"><p class="empty-copy">Forecast metrics appear after an analysis.</p></div>
+              </section>
+
+              <section class="section-block" aria-labelledby="liveChartTitle">
+                <header class="section-header"><div><p class="eyebrow">MARKET HISTORY</p><h2 id="liveChartTitle">Historical price</h2></div><span class="section-note">Recent daily closes</span></header>
+                <svg id="livePriceChart" class="chart" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Historical price chart"></svg>
+                <div id="liveTrendMetrics" class="metrics-list compact-metrics"></div>
+              </section>
+
+              <section class="section-block" aria-labelledby="sourceQualityTitle">
+                <header class="section-header"><div><p class="eyebrow">EVIDENCE COVERAGE</p><h2 id="sourceQualityTitle">Source state</h2></div><span class="section-note">Coverage is shown by dimension</span></header>
+                <div id="liveSourceSummary" class="source-list"></div>
+                <p id="sourceErrors" class="note-block">No analysis has been run.</p><p id="redditOverlayDisclosure" class="note-block" hidden></p>
+              </section>
+
+              <section class="section-block split-section" aria-label="Signal and explanation">
+                <div>
+                  <header class="section-header"><div><p class="eyebrow">DIRECTION</p><h2>Directional signal scores</h2></div></header>
+                  <div id="liveProbabilities" class="score-list"></div>
+                  <p id="liveDisclaimer" class="note-block">Scores are heuristic directional indicators. They are not calibrated probabilities.</p>
+                </div>
+                <div>
+                  <header class="section-header"><div><p class="eyebrow">EXPLANATION</p><h2>Source and feature contribution</h2></div></header>
+                  <div id="contributionMix" class="feature-list"></div>
+                  <div id="liveDrivers" class="driver-list"></div>
+                </div>
+              </section>
+
+              <section class="section-block" aria-labelledby="validationTitle">
+                <header class="section-header"><div><p class="eyebrow">RELIABILITY</p><h2 id="validationTitle">Validation and model diagnostics</h2></div><span class="section-note">Purged chronological holdout</span></header>
+                <div id="liveModelMetrics" class="metrics-list"></div>
+                <p id="liveMethodology" class="note-block"></p>
+              </section>
+
+              <section class="section-block" aria-labelledby="evidenceTitle">
+                <header class="section-header"><div><p class="eyebrow">PROVENANCE</p><h2 id="evidenceTitle">Evidence</h2></div><span class="section-note">Source-attributed items used to construct the live state</span></header>
+                <div id="evidenceList" class="evidence-list"><p class="empty-copy">Run an analysis to populate attributed evidence.</p></div>
+              </section>
+            </div>
+          </section>
+
+          <section id="explorerView" class="view" hidden>
+            <header class="page-header"><div><p class="eyebrow">REPRODUCIBLE RESEARCH</p><h1>Offline Lab</h1><p>Reproduce inference and backtesting without external APIs using bundled datasets and persisted model artifacts.</p></div></header>
+            <section class="control-panel offline-controls">
+              <label>Instrument<select id="ticker"></select></label>
+              <label>Horizon<select id="horizon"><option value="1d">1 trading day</option><option value="5d" selected>5 trading days</option><option value="20d">20 trading days</option></select></label>
+              <div class="button-group"><button id="refreshButton" class="button primary" type="button">Run inference</button><button id="backtestButton" class="button secondary" type="button">Run walk-forward</button><button id="exportButton" class="button secondary" type="button" disabled>Export CSV</button></div>
+            </section>
+            <section class="result-identity section-block">
+              <div><p class="eyebrow">PERSISTED MODEL INFERENCE</p><div class="identity-line"><h2 id="heroTicker">Not loaded</h2><span id="heroSignal" class="signal-label">Not available</span></div><div class="price-line"><strong id="heroPrice">No price</strong><span id="heroReturn">No forecast</span></div><p id="heroMeta">Authenticate to load the deterministic fixture model.</p></div>
+            </section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">RESULT</p><h2>Prediction details</h2></div></header><div id="predictionMetrics" class="metrics-list"></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">MARKET HISTORY</p><h2>Price trace</h2></div><span class="section-note">Bundled deterministic fixture</span></header><svg id="priceChart" class="chart" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Offline fixture price chart"></svg></section>
+            <section class="section-block split-section"><div><header class="section-header"><div><p class="eyebrow">EXPLANATION</p><h2>Model contribution</h2></div></header><div id="featureList" class="feature-list"></div><p id="explanation" class="note-block"></p></div><div><header class="section-header"><div><p class="eyebrow">DIRECTION</p><h2>Signal scores</h2></div></header><div id="probabilities" class="score-list"></div></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">FIXTURE CONTEXT</p><h2>Market context</h2></div></header><div id="marketMetrics" class="metrics-list"></div><div id="movers" class="driver-list"></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">EVALUATION</p><h2>Walk-forward backtest</h2></div><span class="section-note">Refit at each fold with execution costs</span></header><div id="backtestMetrics" class="metrics-list"></div><svg id="equityChart" class="chart" viewBox="0 0 900 260" preserveAspectRatio="none" role="img" aria-label="Walk-forward portfolio equity chart"></svg><p id="backtestWarning" class="note-block">Historical simulation does not imply future performance.</p></section>
+          </section>
+
+          <section id="experimentView" class="view" hidden>
+            <header class="page-header"><div><p class="eyebrow">MODEL EVALUATION</p><h1>Experiment Lab</h1><p>Compare modelling approaches under identical chronological splits, capital assumptions and transaction costs.</p></div></header>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">CONFIGURATION</p><h2>Experiment controls</h2></div></header><div class="experiment-controls"><fieldset><legend>Models</legend><label class="checkbox-field"><input type="checkbox" name="experimentModel" value="ridge" checked/><span><strong>Ridge ML</strong><small>Walk-forward refitted feature model</small></span></label><label class="checkbox-field"><input type="checkbox" name="experimentModel" value="momentum" checked/><span><strong>Momentum</strong><small>Transparent trend baseline</small></span></label><label class="checkbox-field"><input type="checkbox" name="experimentModel" value="mean_reversion" checked/><span><strong>Mean reversion</strong><small>Transparent z-score baseline</small></span></label></fieldset><label>Commission (bps)<input id="commission" type="number" value="10" min="0" max="100"/></label><label>Slippage (bps)<input id="slippage" type="number" value="5" min="0" max="100"/></label><button id="experimentButton" class="button primary" type="button">Run comparison</button></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">OUT-OF-SAMPLE TRACE</p><h2>Equity curves</h2></div></header><div id="experimentLegend" class="legend"></div><svg id="experimentChart" class="chart tall" viewBox="0 0 900 300" preserveAspectRatio="none" role="img" aria-label="Experiment equity comparison chart"></svg></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">COMPARISON</p><h2>Model results</h2></div><span class="section-note">No automatic winner is selected</span></header><div id="experimentTable" class="table-wrap"><p class="empty-copy">Run a comparison to populate experiment results.</p></div><p id="experimentNote" class="note-block"></p></section>
+          </section>
+
+          <section id="systemView" class="view" hidden>
+            <header class="page-header"><div><p class="eyebrow">PLATFORM</p><h1>System</h1><p>Inspect runtime health, provider availability, caching, release integrity and architecture.</p></div></header>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">RUNTIME</p><h2>Operational state</h2></div></header><div id="systemMetrics" class="metrics-list"></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">ARCHITECTURE</p><h2>Default request path</h2></div></header><ol id="architecture" class="architecture-list"></ol></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">IMPLEMENTED CAPABILITIES</p><h2>Engineering surface</h2></div></header><div id="capabilities" class="capability-list"></div></section>
+            <section class="section-block"><header class="section-header"><div><p class="eyebrow">DESIGN PRINCIPLE</p><h2>Live when useful. Reproducible by default.</h2></div></header><p class="document-copy">Provider adapters are isolated from modelling. Deterministic fixtures support CI and reproducible evaluation. Live evidence is attributed, cached briefly and allowed to degrade by source instead of failing the entire request.</p></section>
+          </section>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <footer><span>Quant AI · live intelligence release</span><span>Python · FastAPI · TypeScript · Redis · Alpha Vantage · Reddit Data API</span><span>Experimental research software · not investment advice</span></footer>
+  <footer id="siteFooter" class="site-footer">
+    <div class="footer-brand"><strong>QUANT AI</strong><p>Research and engineering software. Outputs are not investment advice.</p></div>
+    <nav aria-label="Footer navigation"><button type="button" data-public-view="productPage">Product</button><button type="button" data-public-view="methodologyPage">Methodology</button><button type="button" data-public-view="modelCardPage">Model Card</button><button type="button" data-public-view="securityPage">Security</button><button type="button" data-public-view="privacyPage">Privacy Policy</button><button type="button" data-public-view="termsPage">Terms of Use</button><a href="https://github.com/priyanshumishra25/quant-ai-live-intelligence" target="_blank" rel="noopener noreferrer">GitHub</a></nav>
+    <div class="footer-meta"><span>Copyright 2026 Priyanshu Mishra</span><span>Repository license applies to source distribution</span></div>
+  </footer>
 
-  <dialog id="loginDialog"><form id="loginForm"><header>Deployment authentication</header><p>Local defaults are <code>demo / quantai-demo</code>.</p><label>Username<input id="loginUser" value="demo" autocomplete="username"/></label><label>Password<input id="loginPass" value="quantai-demo" type="password" autocomplete="current-password"/></label><button type="submit">Sign in</button></form></dialog>
+  <dialog id="loginDialog" class="login-dialog">
+    <form id="loginForm">
+      <header><p class="eyebrow">AUTHENTICATION</p><h2>Sign in</h2></header>
+      <p id="loginHint">Use the API username and password configured for this deployment.</p>
+      <label>Username<input id="loginUser" autocomplete="username" /></label>
+      <label>Password<input id="loginPass" type="password" autocomplete="current-password" /></label>
+      <div id="loginError" class="inline-error" hidden></div>
+      <button class="button primary" type="submit">Sign in</button>
+      <button id="loginCancel" class="button secondary" type="button">Cancel</button>
+    </form>
+  </dialog>
+
   <script type="module" src="dist/app.js"></script>
 </body>
 </html>
