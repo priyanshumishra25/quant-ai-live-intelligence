@@ -1,4 +1,4 @@
-# Quant AI — Live Stock Intelligence
+# Quant AI - Live Stock Intelligence
 
 **An end-to-end software + AI engineering project that turns a company name or ticker into an auditable market forecast using historical price behaviour, current/historical market news, and Reddit discussion.**
 
@@ -408,7 +408,7 @@ tests/                     deterministic unit + integration suite
 docs/                      architecture, trade-offs and model documentation
 ```
 
-## What this project claims — and does not claim
+## What this project claims - and does not claim
 
 It **does** demonstrate that I can design and ship an ML-backed software product that integrates external data providers, turns unstructured evidence into features, validates models chronologically, exposes uncertainty, attributes sources, handles partial provider failure, and remains testable without network access.
 
