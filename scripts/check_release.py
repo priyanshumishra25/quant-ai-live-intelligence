@@ -47,6 +47,31 @@ def main() -> None:
     for path in public_copy:
         if "interview" in path.read_text().lower():
             fail(f"interview-specific copy remains in {path.relative_to(ROOT)}")
+
+    frontend_html = (ROOT / "frontend" / "index.html").read_text()
+    frontend_css = (ROOT / "frontend" / "styles.css").read_text()
+    frontend_ts = (ROOT / "frontend" / "src" / "app.ts").read_text()
+    forbidden_frontend_tokens = {
+        "linear-gradient": "gradients",
+        "radial-gradient": "radial gradients",
+        "box-shadow": "drop shadows",
+        "space grotesk": "Space Grotesk",
+        "font-family: inter": "Inter",
+        "font-family: geist": "Geist",
+        "lucide": "Lucide icons",
+        "\u2014": "em dashes",
+    }
+    combined_frontend = "\n".join([frontend_html.lower(), frontend_css.lower(), frontend_ts.lower()])
+    for token, label in forbidden_frontend_tokens.items():
+        if token.lower() in combined_frontend:
+            fail(f"frontend design exclusion violated: {label}")
+    if "#fff" in frontend_css.lower() or "#ffffff" in frontend_css.lower():
+        fail("frontend design exclusion violated: pure white color token")
+    for required_copy in ["Privacy Policy", "Terms of Use", "Model Card", "Security"]:
+        if required_copy.lower() not in frontend_html.lower():
+            fail(f"frontend trust page missing: {required_copy}")
+    if "software + ai engineering portfolio" in frontend_html.lower():
+        fail("portfolio-oriented marketing copy remains in frontend")
     registry = json.loads((ROOT / "artifacts/models/registry.json").read_text())
     if registry.get("data_source") != "deterministic synthetic research fixture":
         fail("bundled registry must identify the synthetic fixture")
